@@ -183,8 +183,27 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-nu
 th, td { padding: 9px 4px; text-align: right; border-bottom: .5px solid var(--line); }
 th:nth-child(2), td:nth-child(2) { text-align: left; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
-.form { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; font-size: 12.5px; }
-.form .W { color: var(--good); } .form .L { color: var(--bad); } .form .D { color: var(--muted); }
+.form { display: inline-flex; gap: 2px; vertical-align: middle; }
+.form span { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 800; color: #fff; }
+.form .W { background: #22a34a; } .form .L { background: #e5352b; } .form .D { background: #f59e0b; }
+/* tablica: prozorčić s utakmicama kluba */
+tr.trow { cursor: pointer; }
+tr.trow:hover td { background: var(--fill2); }
+tr.trow.open td { background: var(--tint-soft); }
+tr.trow td:nth-child(2) b.chev { color: var(--muted); font-weight: 600; margin-left: 4px; font-size: 11px; }
+tr.tdet td { padding: 0 0 10px; text-align: left; border-bottom: .5px solid var(--line); }
+.tpop { background: var(--fill2); border-radius: 12px; padding: 10px 12px; margin-top: 4px; animation: tpop .22s ease; }
+@keyframes tpop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.tpop h4 { margin: 2px 0 6px; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.tm { display: grid; grid-template-columns: 46px 22px 1fr auto; gap: 6px; align-items: center; padding: 5px 0; border-top: .5px solid var(--line); font-size: 13.5px; }
+.tm:first-of-type { border-top: 0; }
+.tm .d { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tm .o { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm .sc { min-width: 42px; text-align: center; border-radius: 6px; padding: 2px 6px; color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sc.W { background: #22a34a; } .sc.L { background: #e5352b; } .sc.D { background: #f59e0b; }
+.tpop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.tpop .none { color: var(--muted); font-size: 13px; }
 
 /* ---------- moj tiket ---------- */
 .ticket-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
@@ -775,6 +794,19 @@ async function compute() {
   renderSummary(data.total);
 }
 
+// Prozorčić ispod kluba: zadnjih 5 utakmica, forma kod kuće i u gostima.
+let openTeam = null;
+function teamPopup(team) {
+  const t = Engine.teamForm(team);
+  const dmy = iso => { const d = isoDate(iso); return `${d.getDate()}.${d.getMonth() + 1}.`; };
+  const seq = list => list.length ? formHTML(list.slice().reverse().map(g => g.res).join("")) : `<span class="none">nema utakmica</span>`;
+  return `<div class="tpop">
+    <h4>Zadnjih 5 utakmica</h4>
+    ${t.last.length ? t.last.map(g => `<div class="tm"><span class="d">${dmy(g.date)}</span><span title="${g.home ? "kod kuće" : "u gostima"}">${g.home ? "🏠" : "✈️"}</span>
+      <span class="o">${g.home ? "" : "@ "}${esc(g.opponent)}</span><span class="sc ${g.res}">${g.gf}:${g.ga}</span></div>`).join("") : `<div class="none">Nema odigranih utakmica u zadnjih 5 mjeseci.</div>`}
+    <div class="tpop-grid"><div><h4>🏠 Forma kod kuće</h4>${seq(t.home)}</div><div><h4>✈️ Forma u gostima</h4>${seq(t.away)}</div></div>
+  </div>`;
+}
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
@@ -920,8 +952,13 @@ function renderSide() {
     $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">${select(lgs)}</select>`;
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
     const lg = leagueOf(lgFilter);
-    $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>G</th><th>Bod</th><th>Forma</th></tr>
-      ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.gf}:${r.ga}</td><td><b>${r.pts}</b></td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
+    $("#side").innerHTML = `<p class="sub" style="margin:8px 2px 0">Dodirni klub za zadnje utakmice i formu kod kuće i u gostima.</p>
+      <table><tr><th>#</th><th>Momčad</th><th>U</th><th>G</th><th>Bod</th><th>Forma</th></tr>
+      ${lg.table.map((r, i) => {
+        const open = openTeam === r.team;
+        return `<tr class="trow ${open ? "open" : ""}" data-team="${esc(r.team)}"><td>${i + 1}</td><td>${esc(r.team)}<b class="chev">${open ? "▴" : "▾"}</b></td><td>${r.p}</td><td>${r.gf}:${r.ga}</td><td><b>${r.pts}</b></td><td>${formHTML(r.form)}</td></tr>`
+          + (open ? `<tr class="tdet"><td colspan="6">${teamPopup(r.team)}</td></tr>` : "");
+      }).join("")}</table>`;
     return;
   }
 
@@ -1125,6 +1162,8 @@ function toggleLeg(f, bet, odds, est) {
   return msg;
 }
 $("#side").onclick = e => {
+  const tr = e.target.closest("tr.trow");
+  if (tr && sport === "nog") { openTeam = openTeam === tr.dataset.team ? null : tr.dataset.team; return renderSide(); }
   const mo = e.target.closest("[data-more]");
   if (mo) { const k = mo.dataset.more; expanded.has(k) ? expanded.delete(k) : expanded.add(k); return renderSide(); }
   const kb = e.target.closest("[data-bfx]");

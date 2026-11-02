@@ -5,7 +5,7 @@
 const Engine = (() => {
   let D = null, L = {}, where = {}, byNorm = {}, alias = {}, fixByPair = {}, resultsByPair = {};
   // košarka
-  let lamCache = {}, probCache = {};
+  let lamCache = {}, probCache = {}, byTeam = {};
   let B = {leagues: [], fixtures: [], results: []}, BL = {}, BI = {byNorm: {}, alias: {}, where: {}}, bFix = {}, bRes = {};
 
   const BET_LABELS = {
@@ -26,7 +26,7 @@ const Engine = (() => {
     const r = await fetch("data.json" + (force ? "?t=" + Date.now() : ""), {cache: force ? "reload" : "default"});
     if (!r.ok) throw new Error("Ne mogu učitati podatke (" + r.status + ")");
     D = await r.json();
-    L = {}; where = {}; byNorm = {}; fixByPair = {}; resultsByPair = {}; lamCache = {}; probCache = {};
+    L = {}; where = {}; byNorm = {}; fixByPair = {}; resultsByPair = {}; lamCache = {}; probCache = {}; byTeam = {};
     for (const lg of D.leagues) {
       L[lg.code] = lg;
       for (const t of lg.teams) { if (!where[t]) where[t] = lg.code; byNorm[norm(t)] = t; }
@@ -38,6 +38,8 @@ const Engine = (() => {
       const k = h + "|" + a;
       if (!resultsByPair[k]) resultsByPair[k] = [];
       resultsByPair[k].push([d, hg, ag]);
+      (byTeam[h] = byTeam[h] || []).push([d, h, a, hg, ag]);
+      (byTeam[a] = byTeam[a] || []).push([d, h, a, hg, ag]);
     }
     B = D.basket || {leagues: [], fixtures: [], results: []};
     BL = {}; BI = {byNorm: {}, alias: {}, where: {}}; bFix = {}; bRes = {};
@@ -853,5 +855,13 @@ const Engine = (() => {
     return added;
   }
 
-  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
+  // Zadnje utakmice kluba (nogomet): sve, kod kuće i u gostima, najnovije prve.
+  function teamForm(team, n = 5) {
+    const games = (byTeam[team] || []).slice().sort((x, y) => y[0].localeCompare(x[0])).map(([d, h, a, hg, ag]) => {
+      const home = h === team, gf = home ? hg : ag, ga = home ? ag : hg;
+      return {date: d, home, opponent: home ? a : h, gf, ga, res: gf > ga ? "W" : gf === ga ? "D" : "L"};
+    });
+    return {last: games.slice(0, n), home: games.filter(g => g.home).slice(0, n), away: games.filter(g => !g.home).slice(0, n)};
+  }
+  return {api, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
 })();
