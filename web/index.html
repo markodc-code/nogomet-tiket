@@ -751,7 +751,6 @@ function basketLegHTML(r) {
   const hok = r.sport === "hok", unit = hok ? "golova" : "poena";
   const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
-  if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: samo model</span>`);
 
   const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.w}-${row.l}${hok ? "-" + row.otl + " · " + row.pts + " bod." : ""} · ${hok ? "golovi" : "koševi"} ${row.pf}:${row.pa}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
   const sgn = x => (x >= 0 ? "+" : "−") + num(Math.abs(x), 1);
@@ -774,7 +773,6 @@ function tennisLegHTML(r) {
     : `<b>${esc(name)}</b><br>Elo ${elo != null ? Math.round(elo) : "?"}`;
   return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
     <div class="meta">Šansa za <b>${esc(r.betLabel)}</b>${r.tournament ? ` · ${esc(r.tournament)}${r.round ? ", " + esc(r.round) : ""}` : ""}</div>
-    <div class="chips"><span class="chip bad">Bez kvota: samo model</span></div>
     <details><summary>Detalji meča</summary>
       <div class="det">
         <div><h4>Pobjednik</h4>${esc(r.home)} <b>${pct(r.basic["1"])}</b><br>${esc(r.away)} <b>${pct(r.basic["2"])}</b></div>
@@ -791,7 +789,6 @@ function legHTML(r) {
   if (r.sport && r.sport !== "nog") return basketLegHTML(r);
   const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
-  if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: manje pouzdano</span>`);
 
   const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.pts} bod. · ${row.gf}:${row.ga}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
   return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
@@ -1095,7 +1092,7 @@ function heroHTML(kind, title, when, s) {
       <span class="no">${i + 1}</span>
       <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${SPORT_ICON[r.sport] || ""} ${esc(r.leagueName)} · ${shortDay(r.date)} ${esc(r.time || "")}</small></span>
       <span class="r"><b>${pct(r.p)}</b><small>šansa</small></span>
-      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span><span class="chip">kvota <b>${r.est ? "≈" : ""}${num(r.odds)}</b></span>${r.est ? `<span class="chip bad">bez kvota: samo model</span>` : ""}
+      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span><span class="chip">kvota <b>${r.est ? "≈" : ""}${num(r.odds)}</b></span>
         <button class="btn sm add ${on ? "on" : ""}" data-sug="${kind}:${i}">${on ? "✓ Na tiketu" : "+ Na tiket"}</button></span>
     </div>`; }).join("")}
     <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} ${filterText()}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
