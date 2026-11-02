@@ -399,6 +399,9 @@ details[open] summary::after { content: " ‹"; }
 .slip-stake div { display: flex; align-items: center; gap: 6px; background: var(--fill2); border-radius: 10px; padding: 0 10px; }
 .slip-stake input { width: 100%; min-width: 0; border: 0; background: transparent; min-height: 40px; font-weight: 700; font-size: 17px; text-align: right; }
 .slip-stake input:focus { outline: none; }
+.more { display: block; width: 100%; margin: 6px 0 0 56px; width: calc(100% - 56px); border: 0; background: none; color: var(--tint-text);
+  font-weight: 600; font-size: 13.5px; padding: 6px 0; text-align: left; }
+@media (max-width: 520px) { .more { margin-left: 0; width: 100%; } }
 .ob small.k { font-size: 11.5px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ob.on small.k { color: var(--tint-ink); opacity: .85; }
 .ob { min-height: 54px; }
@@ -576,11 +579,12 @@ function toast(msg, onTap) {
 function basketBetOptions(l) {
   const L = l.lines || {spread: -0.5, total: 160.5};
   let opts;
-  if (l.sport === "hok") opts = ["1", "X", "2", "1X", "X2", "12", "1OT", "2OT", `O:${L.total ?? 5.5}`, `U:${L.total ?? 5.5}`];
-  else if (l.sport === "ten") opts = tennisBets(L.bo || 3).map(x => x[0]);
+  if (l.sport === "hok") opts = ["1", "X", "2", "1X", "X2", "12", "1OT", "2OT", `O:${L.total ?? 5.5}`, `U:${L.total ?? 5.5}`,
+    ...otherExtra("poisson", {total: L.total ?? 5.5}).map(x => x[0])];
+  else if (l.sport === "ten") opts = [...tennisBets(L.bo || 3).map(x => x[0]), ...otherExtra("elo", L).map(x => x[0])];
   else {
     opts = ["1", "2", `H1:${L.spread}`, `H2:${-L.spread}`, `O:${L.total}`, `U:${L.total}`];
-    if (L.home != null) opts.push(`DO:${L.home}`, `DU:${L.home}`, `GO:${L.away}`, `GU:${L.away}`);
+    if (L.home != null) opts.push(`DO:${L.home}`, `DU:${L.home}`, `GO:${L.away}`, `GU:${L.away}`, ...otherExtra("points", L).map(x => x[0]));
   }
   if (!opts.includes(l.bet)) opts.push(l.bet);
   return opts.map(b => `<option value="${esc(b)}" ${b === l.bet ? "selected" : ""}>${esc(Engine.basketLabel(b, l.sport))}</option>`).join("");
@@ -877,7 +881,12 @@ const legOdds = l => { const v = parseFloat(String(l.odds || "").replace(",", ".
 const BTNS = [["1", "1"], ["X", "X"], ["2", "2"], ["1X", null], ["X2", null],
   ["12", null], ["GG", null], ["NG", null], ["3+", "O2.5"], ["0-2", "U2.5"]];
 // natpisi na gumbima: kratice koje nisu svima jasne pišemo punim riječima
-const BTN_LABEL = {GG: "oba daju gol", NG: "barem jedan ne da gol", "3+": "3+ gola", "0-2": "0-2 gola"};
+const BTN_LABEL = {GG: "oba daju gol", NG: "barem jedan ne da gol", "3+": "3+ gola", "0-2": "0-2 gola",
+  "2+": "2+ gola", "0-1": "0-1 gol", "4+": "4+ gola", "0-3": "0-3 gola", "2-3": "2-3 gola", "GG3+": "oba daju i 3+",
+  "1&GG": "1 i oba daju", "2&GG": "2 i oba daju", "D2+": "dom. 2+ gola", "G2+": "gost 2+ gola"};
+const BTNS_EXTRA = ["2+", "0-1", "4+", "0-3", "2-3", "GG3+", "1&GG", "2&GG", "D2+", "G2+"];
+const expanded = new Set();   // parovi kojima je otvoreno svih 20 opcija
+const moreBtn = (key, open) => `<button class="more" data-more="${esc(key)}">${open ? "▴ Manje opcija" : "▾ Još 10 opcija"}</button>`;
 const legFor = (home, away, sp = "nog") => legs.find(l => l.home === home && l.away === away && (l.sport || "nog") === sp);
 const leagueOf = code => INIT.leagues.find(l => l.code === code);
 const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter);
@@ -937,11 +946,16 @@ function renderSide() {
       return `<div class="fx">
         <div class="fx-top"><span class="fx-time">${Engine.hrTime(f)}</span>
           <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
-        <div class="fx-odds">${BTNS.map(([bet, key]) => {
-          const pr = Engine.fixtureProbs(f)[bet], on = leg && leg.bet === bet;
-          return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(bet)} šansa ${pct(pr)}">
-            <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b><small class="k">${oddsLine(fxOdds(f, bet), pr)}</small></button>`;
-        }).join("")}</div></div>`;
+        ${(() => {
+          const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
+          const bets = [...BTNS.map(x => x[0]), ...(open ? BTNS_EXTRA : [])]
+            .map(bet => [bet, Engine.fixtureBetP(f, bet)]).sort((a, b) => (b[1] || 0) - (a[1] || 0));   // po šansi
+          return `<div class="fx-odds">${bets.map(([bet, pr]) => {
+            const on = leg && leg.bet === bet;
+            return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(BTN_LABEL[bet] || bet)} šansa ${pct(pr)}">
+              <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b><small class="k">${oddsLine(fxOdds(f, bet), pr)}</small></button>`;
+          }).join("")}</div>${moreBtn(key, open)}`;
+        })()}</div>`;
     }).join("");
   }).join("");
 }
@@ -954,6 +968,21 @@ function tennisBets(bo) {
   return [["1", "1"], ["2", "2"], ...sc.map(x => [`S:${x}`, x]),
     [`SO:${line}`, `više ${num(line, 1)} seta`], [`SU:${line}`, `manje ${num(line, 1)} seta`]];
 }
+// dodatne oklade (prikazuju se nakon "Još 10 opcija")
+function otherExtra(model, L) {
+  const n1 = x => num(x, 1).replace(",0", "");
+  if (model === "elo") return [["F1", "1. set: prvi"], ["F2", "1. set: drugi"], ["A1", "prvi uzme set"], ["A2", "drugi uzme set"]];
+  if (model === "poisson") {
+    const lo = L.total - 1, hi = L.total + 1;
+    return [["GG", "oba daju gol"], ["NG", "barem jedan ne da"], ["H1:-1.5", "H1 −1,5"], ["H2:1.5", "H2 +1,5"], ["H1:1.5", "H1 +1,5"], ["H2:-1.5", "H2 −1,5"],
+      [`O:${lo}`, `više ${n1(lo)}`], [`U:${lo}`, `manje ${n1(lo)}`], [`O:${hi}`, `više ${n1(hi)}`], [`U:${hi}`, `manje ${n1(hi)}`]];
+  }
+  const a = L.spread - 4, b = L.spread + 4, tl = L.total - 8, th = L.total + 8;
+  return [[`H1:${a}`, `H1 ${fmtL(a)}`], [`H2:${-a}`, `H2 ${fmtL(-a)}`], [`H1:${b}`, `H1 ${fmtL(b)}`], [`H2:${-b}`, `H2 ${fmtL(-b)}`],
+    [`O:${tl}`, `više ${n1(tl)}`], [`U:${tl}`, `manje ${n1(tl)}`], [`O:${th}`, `više ${n1(th)}`], [`U:${th}`, `manje ${n1(th)}`],
+    [`DO:${L.home - 5}`, `dom. više ${n1(L.home - 5)}`], [`GO:${L.away - 5}`, `gost više ${n1(L.away - 5)}`]];
+}
+const SPORT_MODEL = {kos: "points", hok: "poisson", ten: "elo"};
 function basketButtons(f) {
   const L = f.lines, o = f.odds || {}, lg = INIT.basket.leagues.find(l => l.code === f.league) || {};
   if (lg.model === "elo") return tennisBets(L.bo || 3).map(([b, t]) => [b, t, null]);
@@ -1021,11 +1050,16 @@ function renderBasket() {
     return `${head}<div class="fx">
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
         <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div>${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>
-      <div class="fx-odds">${basketButtons(f).map(([bet, label, odds]) => {
-        const on = leg && leg.bet === bet, pr = Engine.basketProbFor(f, bet);
-        return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
-          <span>${esc(label)}</span><b>${pct(pr)}</b><small class="k">${oddsLine(odds, pr)}</small></button>`;
-      }).join("")}</div></div>`;
+      ${(() => {
+        const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
+        const opts = [...basketButtons(f), ...(open ? otherExtra(lg.model, f.lines).map(([b, t]) => [b, t, null]) : [])]
+          .map(([bet, label, odds]) => [bet, label, odds, Engine.basketProbFor(f, bet)]).sort((x, y) => (y[3] || 0) - (x[3] || 0));   // po šansi
+        return `<div class="fx-odds">${opts.map(([bet, label, odds, pr]) => {
+          const on = leg && leg.bet === bet;
+          return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
+            <span>${esc(label)}</span><b>${pct(pr)}</b><small class="k">${oddsLine(odds, pr)}</small></button>`;
+        }).join("")}</div>${moreBtn(key, open)}`;
+      })()}</div>`;
   }).join("");
 }
 $("#sports").onclick = e => {
@@ -1067,6 +1101,8 @@ function toggleLeg(f, bet, odds, est) {
   return msg;
 }
 $("#side").onclick = e => {
+  const mo = e.target.closest("[data-more]");
+  if (mo) { const k = mo.dataset.more; expanded.has(k) ? expanded.delete(k) : expanded.add(k); return renderSide(); }
   const kb = e.target.closest("[data-bfx]");
   if (kb) {
     const f = INIT.basket.fixtures[+kb.dataset.bfx], bet = kb.dataset.b;
@@ -1077,10 +1113,10 @@ $("#side").onclick = e => {
     return toast(`${msg} · ${parovi(filledLegs().length)}`, isNarrow() ? () => setPane("ticket") : null);
   }
   const b = e.target.closest("[data-fx]"); if (!b) return;
-  const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b, key = BTNS.find(x => x[0] === bet)[1];
+  const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b;
   const real = fxOdds(f, bet);
   const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: Engine.hrTime(f), league: f.league}, bet,
-    real || estOdds(Engine.fixtureProbs(f)[bet]), !real);
+    real || estOdds(Engine.fixtureBetP(f, bet)), !real);
   renderSide();
   const n = filledLegs().length;
   toast(`${msg} · ${parovi(n)}`, isNarrow() ? () => setPane("ticket") : null);
@@ -1102,6 +1138,7 @@ function setView(v) {
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 /* ---------- prijedlog dana i prijedlog tjedna ---------- */
+if (store.get("nt-maxp2", 0.5) === 0.7) store.set("nt-maxp2", 0.8);
 let SUG = null, minOdds = store.get("nt-minodds", 1.5), maxP = store.get("nt-maxp2", 0.5), pickCount = store.get("nt-count", 5);
 let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
 const SPORT_ICON = {nog: "⚽", kos: "🏀", hok: "🏒", ten: "🎾"};
@@ -1145,7 +1182,7 @@ async function renderSuggest() {
     <div class="picks-ctrl">
       <label>Parova ${seg("data-count", [1, 3, 5, 7, 10], pickCount, v => v)}</label>
       <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], pickMode === "odds" ? minOdds : null, v => num(v))}</label>
-      <label>ili šansa do ${seg("data-maxp", [0.3, 0.4, 0.5, 0.6, 0.7], pickMode === "chance" ? maxP : null, v => Math.round(v * 100) + " %")}</label>
+      <label>ili šansa do ${seg("data-maxp", [0.3, 0.4, 0.5, 0.6, 0.8], pickMode === "chance" ? maxP : null, v => Math.round(v * 100) + " %")}</label>
     </div>
     <div class="picks-grid">
       <div>${sportSeg("day", daySport)}${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}</div>

@@ -18,7 +18,7 @@ const Engine = (() => {
     "O3.5": "Više od 3.5", "U3.5": "Manje od 3.5",
     "1&GG": "1 i oba tima daju gol", "2&GG": "2 i oba tima daju gol",
     "D2+": "Domaćin 2+ golova", "G2+": "Gost 2+ golova",
-    "D0": "Domaćin ne zabija", "G0": "Gost ne zabija",
+    "D0": "Domaćin ne zabija", "G0": "Gost ne zabija", "0-3": "0-3 gola",
   };
 
   // ------------------------------------------------------------ podaci
@@ -51,7 +51,7 @@ const Engine = (() => {
       f.iso = localIsoD(k); f.time = `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`;
       if (!bFix[f.home + "|" + f.away]) bFix[f.home + "|" + f.away] = f;
     }
-    for (const [d, lg, h, a, hs, as, ex] of B.results) (bRes[h + "|" + a] = bRes[h + "|" + a] || []).push([d, hs, as, ex]);
+    for (const [d, lg, h, a, hs, as, ex, fs] of B.results) (bRes[h + "|" + a] = bRes[h + "|" + a] || []).push([d, hs, as, ex, fs]);
     return D;
   }
 
@@ -375,17 +375,29 @@ const Engine = (() => {
     const [k, v] = String(bet).split(":"), x = v != null ? parseFloat(v).toLocaleString("hr-HR") : "";
     return ({"1": "1 (regularni dio)", "X": "X (regularni dio)", "2": "2 (regularni dio)",
       "1X": "1X (regularni dio)", "X2": "X2 (regularni dio)", "12": "12 (regularni dio)",
-      "1OT": "1 (uključujući produžetke)", "2OT": "2 (uključujući produžetke)"})[k]
-      || (k === "O" ? `Više od ${x} golova` : k === "U" ? `Manje od ${x} golova` : bet);
+      "1OT": "1 (uključujući produžetke)", "2OT": "2 (uključujući produžetke)",
+      "GG": "Oba tima daju gol", "NG": "Barem jedan tim ne daje gol"})[k]
+      || (k === "O" ? `Više od ${x} golova` : k === "U" ? `Manje od ${x} golova`
+      : k === "H1" ? `Hendikep domaćin ${fmtLine(parseFloat(v))}` : k === "H2" ? `Hendikep gost ${fmtLine(parseFloat(v))}` : bet);
   }
   function hockeyBetP(m, bet) {
     const [k, v] = String(bet).split(":"), x = parseFloat(v);
-    let p1 = 0, px = 0, p2 = 0, over = 0;
+    let p1 = 0, px = 0, p2 = 0, over = 0, gg = 0, hc = 0;
     for (let i = 0; i < m.length; i++) for (let j = 0; j < m.length; j++) {
       const q = m[i][j];
       if (i > j) p1 += q; else if (i < j) p2 += q; else px += q;
       if (k === "O" || k === "U") { const tot = i + j + (i === j ? 1 : 0); if (tot > x) over += q; }
+      if (i > 0 && j > 0) gg += q;
+      // hendikep (puck line) na konačnom rezultatu: kod neriješenog pobjednik produžetaka dobiva +1 (pola-pola)
+      if (k === "H1" || k === "H2") {
+        const marg = k === "H1" ? i - j : j - i;
+        if (i === j) hc += q * 0.5 * ((1 + x > 0 ? 1 : 0) + (-1 + x > 0 ? 1 : 0));
+        else if (marg + x > 0) hc += q;
+      }
     }
+    if (k === "H1" || k === "H2") return hc;
+    if (k === "GG") return gg;
+    if (k === "NG") return 1 - gg;
     const r = {"1": p1, "X": px, "2": p2, "1X": p1 + px, "X2": px + p2, "12": p1 + p2, "1OT": p1 + px / 2, "2OT": p2 + px / 2};
     if (k in r) return r[k];
     if (k === "O") return over;
@@ -433,6 +445,10 @@ const Engine = (() => {
     if (k === "X2") return reg !== "1";
     if (k === "12") return reg !== "X";
     if (k === "1OT") return hs > as;
+    if (k === "GG") return hs > 0 && as > 0;
+    if (k === "NG") return hs === 0 || as === 0;
+    if (k === "H1") return hs - as + x > 0;
+    if (k === "H2") return as - hs + x > 0;
     if (k === "2OT") return as > hs;
     if (k === "O") return hs + as > x;
     if (k === "U") return hs + as < x;
@@ -462,6 +478,10 @@ const Engine = (() => {
     if (k === "S") return `Rezultat u setovima ${a}:${b}`;
     if (k === "SO") return `Više od ${parseFloat(a).toLocaleString("hr-HR")} seta`;
     if (k === "SU") return `Manje od ${parseFloat(a).toLocaleString("hr-HR")} seta`;
+    if (k === "F1") return "Prvi igrač osvaja 1. set";
+    if (k === "F2") return "Drugi igrač osvaja 1. set";
+    if (k === "A1") return "Prvi igrač osvaja barem jedan set";
+    if (k === "A2") return "Drugi igrač osvaja barem jedan set";
     return bet;
   }
   function tennisMatchP(lg, a, b) {
@@ -487,15 +507,22 @@ const Engine = (() => {
     const [k, a, b] = String(bet).split(":");
     if (k === "1") return pm;
     if (k === "2") return 1 - pm;
-    const sc = setScores(setP(pm, bo), bo);
+    const sp = setP(pm, bo), sc = setScores(sp, bo);
     if (k === "S") return sc[`${a}:${b}`] ?? 0;
+    if (k === "F1") return sp;
+    if (k === "F2") return 1 - sp;
+    if (k === "A1") return 1 - (bo === 5 ? sc["0:3"] : sc["0:2"]);
+    if (k === "A2") return 1 - (bo === 5 ? sc["3:0"] : sc["2:0"]);
     const line = parseFloat(a), over = Object.entries(sc).filter(([key]) => +key[0] + +key[2] > line).reduce((x, [, v]) => x + v, 0);
     if (k === "SO") return over;
     if (k === "SU") return 1 - over;
     throw new Error("Nepoznata teniska oklada: " + bet);
   }
-  function settleTennis(bet, s1, s2, w) {
+  function settleTennis(bet, s1, s2, w, fs) {
     const [k, a, b] = String(bet).split(":");
+    if (k === "F1" || k === "F2") { if (!fs) throw new Error("nema rezultata 1. seta"); return fs === (k === "F1" ? 1 : 2); }
+    if (k === "A1") return s1 >= 1;
+    if (k === "A2") return s2 >= 1;
     if (k === "1") return w === 1;
     if (k === "2") return w === 2;
     if (k === "S") return s1 === +a && s2 === +b;
@@ -514,6 +541,8 @@ const Engine = (() => {
     // ime igrača umjesto "prvi/drugi igrač"
     if (bet === "1") r.betLabel = `Pobjeda: ${h}`;
     if (bet === "2") r.betLabel = `Pobjeda: ${a}`;
+    if (bet === "F1" || bet === "F2") r.betLabel = `${bet === "F1" ? h : a} osvaja 1. set`;
+    if (bet === "A1" || bet === "A2") r.betLabel = `${bet === "A1" ? h : a} osvaja barem jedan set`;
     return r;
   }
 
@@ -530,7 +559,7 @@ const Engine = (() => {
   }
   function settleOther(sport, bet, g) {
     if (sport === "hok") return settleHockey(bet, g[1], g[2], !!g[3]);
-    if (sport === "ten") return settleTennis(bet, g[1], g[2], g[3]);
+    if (sport === "ten") return settleTennis(bet, g[1], g[2], g[3], g[4]);
     return settleBasket(bet, g[1], g[2]);
   }
 
@@ -627,6 +656,19 @@ const Engine = (() => {
   }
   const notStarted = (f, now) => kickoff(f) > now;
 
+  // Šansa za bilo koju nogometnu okladu iz iste matrice rezultata (za 20 opcija u ponudi).
+  const fullCache = {};
+  function fixtureBetP(f, bet) {
+    const key = f.league + "|" + f.home + "|" + f.away;
+    if (!fullCache[key]) {
+      const r = evaluateLeg({home: f.home, away: f.away, bet: "1", league: f.league});
+      const c = lamCache[key];
+      fullCache[key] = r.error || !c ? null : matrix(c.lh, c.la, L[f.league].rho);
+    }
+    const m = fullCache[key];
+    if (!m) return null;
+    try { return betProbability(m, bet); } catch { return null; }
+  }
   // Šanse za gumbe nogometne ponude (1, X, 2, 3+, 0-2) jednim izračunom.
   function fixtureProbs(f) {
     const k = f.league + "|" + f.home + "|" + f.away;
@@ -811,5 +853,5 @@ const Engine = (() => {
     return added;
   }
 
-  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
 })();

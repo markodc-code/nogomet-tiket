@@ -205,8 +205,11 @@ def load_tennis(today, force=False, days_back=800):
                                     continue
                                 sets[0 if g0 > g1 else 1] += 1
                             seen.add(c["id"])
+                            fs = 0   # pobjednik 1. seta (1/2), 0 ako nije poznat
+                            if ls[0] and ls[1] and max(ls[0][0], ls[1][0]) >= 6:
+                                fs = 1 if ls[0][0] > ls[1][0] else 2
                             done.append((when, league, names[0], names[1], 0 if win[0] else 1, sets[0], sets[1],
-                                         st.get("name") == "STATUS_RETIRED"))
+                                         st.get("name") == "STATUS_RETIRED", fs))
                         elif st.get("state") == "pre" and when > now and when < now + dt.timedelta(days=FIXTURE_DAYS):
                             seen.add(c["id"])
                             upcoming.append({"league": league, "utc": when.strftime("%Y-%m-%dT%H:%MZ"),
@@ -320,7 +323,7 @@ def build(today=None, force=False, accuracy=None):
             })
         out["fixtures"] += upcoming
         cutoff = now - dt.timedelta(days=RESULT_DAYS["ten"])
-        out["results"] += [[m[0].strftime("%Y-%m-%dT%H:%MZ"), m[1], m[2], m[3], m[5], m[6], 1 if m[4] == 0 else 2]
+        out["results"] += [[m[0].strftime("%Y-%m-%dT%H:%MZ"), m[1], m[2], m[3], m[5], m[6], 1 if m[4] == 0 else 2, m[8]]
                            for m in matches if m[0] >= cutoff]
         print(f"  Tenis: {len(matches)} mečeva, {len(upcoming)} nadolazećih")
     except Exception as e:
