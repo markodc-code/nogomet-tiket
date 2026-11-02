@@ -421,6 +421,20 @@ details[open] summary::after { content: " ‹"; }
 .more { display: block; width: 100%; margin: 6px 0 0 56px; width: calc(100% - 56px); border: 0; background: none; color: var(--tint-text);
   font-weight: 600; font-size: 13.5px; padding: 6px 0; text-align: left; }
 @media (max-width: 520px) { .more { margin-left: 0; width: 100%; } }
+.ob.fav { box-shadow: inset 0 0 0 2px #f5b301; }
+.ob.fav span::before { content: "★ "; color: #e0a100; }
+.ob.on.fav span::before { color: #fff3c4; }
+.favbar { margin: 4px 0 6px; }
+.favbtn { border: 0; background: rgba(245,179,1,.14); color: #a16207; font-weight: 700; font-size: 14px; border-radius: 12px;
+  padding: 9px 12px; width: 100%; text-align: left; display: flex; gap: 8px; align-items: center; }
+.favbtn small { font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .favbtn { color: #fcd34d; } }
+.favpanel { background: var(--fill2); border-radius: 12px; padding: 10px 12px; margin-top: 6px; animation: tpop .22s ease; }
+.favpanel p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.favchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.favchips button { border: 0; border-radius: 16px; padding: 7px 12px; background: var(--card); font-size: 13.5px; font-weight: 600; }
+.favchips button.on { background: #f5b301; color: #3b2a00; }
+.favchips button.on::before { content: "★ "; }
 .ob small.k { font-size: 11.5px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ob.on small.k { color: var(--tint-ink); opacity: .85; }
 .ob { min-height: 54px; }
@@ -478,6 +492,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
         </div>
         <div id="days" class="days"></div>
         <div id="dayhead"></div>
+        <div id="favbar" class="favbar"></div>
         <div id="side"><div class="loading">Učitavam…</div></div>
       </section>
 
@@ -928,8 +943,44 @@ function centerDay() {
   const box = $("#days"), sel = box && box.querySelector(".on");
   if (sel) box.scrollLeft = sel.offsetLeft - box.clientWidth / 2 + sel.offsetWidth / 2;
 }
+/* ---------- omiljene oklade (po sportu): prikazuju se prve kod svakog para ---------- */
+const favs = store.get("nt-favs", {nog: [], kos: [], hok: [], ten: []});
+let favOpen = false;
+// vrsta oklade bez linije, npr. "O:229.5" -> "O" (teniski točan rezultat ostaje cijeli)
+const favKey = bet => { const b = String(bet); return b.startsWith("S:") ? b : b.split(":")[0]; };
+const isFav = bet => (favs[sport] || []).includes(favKey(bet));
+const FAV_TYPES = {
+  nog: () => [...BTNS.map(x => x[0]), ...BTNS_EXTRA].map(b => [b, BTN_LABEL[b] || b]),
+  kos: () => [["1", "1 (domaćin)"], ["2", "2 (gost)"], ["H1", "hendikep domaćin"], ["H2", "hendikep gost"], ["O", "više poena"], ["U", "manje poena"],
+    ["DO", "domaćin više"], ["DU", "domaćin manje"], ["GO", "gost više"], ["GU", "gost manje"]],
+  hok: () => [["1", "1"], ["X", "X"], ["2", "2"], ["1X", "1X"], ["X2", "X2"], ["12", "12"], ["1OT", "1 s prod."], ["2OT", "2 s prod."],
+    ["GG", "oba daju gol"], ["NG", "barem jedan ne da"], ["H1", "hendikep domaćin"], ["H2", "hendikep gost"], ["O", "više golova"], ["U", "manje golova"]],
+  ten: () => [["1", "pobjeda prvog"], ["2", "pobjeda drugog"], ["S:2:0", "2:0"], ["S:2:1", "2:1"], ["S:1:2", "1:2"], ["S:0:2", "0:2"],
+    ["SO", "više setova"], ["SU", "manje setova"], ["F1", "1. set: prvi"], ["F2", "1. set: drugi"], ["A1", "prvi uzme set"], ["A2", "drugi uzme set"]],
+};
+function renderFavBar() {
+  const el = $("#favbar");
+  if (side !== "fx") { el.innerHTML = ""; return; }
+  const types = FAV_TYPES[sport](), mine = favs[sport] || [];
+  const names = types.filter(([k]) => mine.includes(k)).map(([, t]) => t);
+  el.innerHTML = `<button class="favbtn" id="favToggle">★ Omiljene oklade <small>${names.length ? esc(names.join(", ")) : "dodirni i odaberi što najviše igraš"}</small></button>`
+    + (favOpen ? `<div class="favpanel"><p>Označene oklade bit će prve kod svakog para, a ostale iza njih po šansi.</p>
+      <div class="favchips">${types.map(([k, t]) => `<button data-fav="${esc(k)}" class="${mine.includes(k) ? "on" : ""}">${esc(t)}</button>`).join("")}</div></div>` : "");
+}
+$("#favbar").addEventListener("click", e => {
+  if (e.target.closest("#favToggle")) { favOpen = !favOpen; return renderFavBar(); }
+  const b = e.target.closest("[data-fav]"); if (!b) return;
+  const list = favs[sport] = favs[sport] || [], k = b.dataset.fav, i = list.indexOf(k);
+  if (i >= 0) list.splice(i, 1); else list.push(k);
+  store.set("nt-favs", favs);
+  renderSide();
+});
+// omiljene prve, unutar toga i ostalih po šansi
+const favSort = (betOf, pOf) => (x, y) => (isFav(betOf(y)) - isFav(betOf(x))) || ((pOf(y) || 0) - (pOf(x) || 0));
+
 function renderSide() {
   if (!INIT) return;
+  renderFavBar();
   document.querySelectorAll("#sports button").forEach(b => b.classList.toggle("on", b.dataset.sport === sport));
   document.querySelectorAll("#sideSeg button").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
   if (sport !== "nog") return renderBasket();
@@ -1002,11 +1053,11 @@ function renderSide() {
           <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
         ${(() => {
           const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
-          const bets = [...BTNS.map(x => x[0]), ...(open ? BTNS_EXTRA : [])]
-            .map(bet => [bet, Engine.fixtureBetP(f, bet)]).sort((a, b) => (b[1] || 0) - (a[1] || 0));   // po šansi
+          const bets = [...BTNS.map(x => x[0]), ...BTNS_EXTRA.filter(b => open || isFav(b))]
+            .map(bet => [bet, Engine.fixtureBetP(f, bet)]).sort(favSort(x => x[0], x => x[1]));   // omiljene prve, pa po šansi
           return `<div class="fx-odds">${bets.map(([bet, pr]) => {
             const on = leg && leg.bet === bet;
-            return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(BTN_LABEL[bet] || bet)} šansa ${pct(pr)}">
+            return `<button class="ob ${on ? "on" : ""} ${isFav(bet) ? "fav" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(BTN_LABEL[bet] || bet)} šansa ${pct(pr)}">
               <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b><small class="k">${oddsLine(fxOdds(f, bet), pr)}</small></button>`;
           }).join("")}</div>${moreBtn(key, open)}`;
         })()}</div>`;
@@ -1106,11 +1157,11 @@ function renderBasket() {
         <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div>${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>
       ${(() => {
         const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
-        const opts = [...basketButtons(f), ...(open ? otherExtra(lg.model, f.lines).map(([b, t]) => [b, t, null]) : [])]
-          .map(([bet, label, odds]) => [bet, label, odds, Engine.basketProbFor(f, bet)]).sort((x, y) => (y[3] || 0) - (x[3] || 0));   // po šansi
+        const opts = [...basketButtons(f), ...otherExtra(lg.model, f.lines).filter(([b]) => open || isFav(b)).map(([b, t]) => [b, t, null])]
+          .map(([bet, label, odds]) => [bet, label, odds, Engine.basketProbFor(f, bet)]).sort(favSort(x => x[0], x => x[3]));   // omiljene prve, pa po šansi
         return `<div class="fx-odds">${opts.map(([bet, label, odds, pr]) => {
           const on = leg && leg.bet === bet;
-          return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
+          return `<button class="ob ${on ? "on" : ""} ${isFav(bet) ? "fav" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
             <span>${esc(label)}</span><b>${pct(pr)}</b><small class="k">${oddsLine(odds, pr)}</small></button>`;
         }).join("")}</div>${moreBtn(key, open)}`;
       })()}</div>`;
