@@ -118,6 +118,34 @@ summary { cursor: pointer; color: var(--muted); }
 .lgf button { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
 .lgf button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
 .lgsel { width: 100%; background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+/* istaknuti prijedlozi */
+.picks-ctrl { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 16px; font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; background: var(--card); margin-left: 6px; }
+.seg button { border: none; background: none; padding: 5px 11px; border-radius: 7px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.seg button.on { background: var(--ink); color: var(--card); font-weight: 600; }
+.picks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .picks-grid { grid-template-columns: 1fr; } }
+.hero { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); }
+.hero-head { padding: 16px 18px 14px; color: #fff; background: linear-gradient(135deg, #1f7a4a, #0f4d2d); }
+.hero.h-week .hero-head { background: linear-gradient(135deg, #1b4f8a, #0e2f57); }
+.hero-head h2 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: .04em; }
+.hero-head .when { font-size: 13.5px; opacity: .9; margin-top: 2px; }
+.hero-stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 12px; }
+.hero-stats div { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; opacity: .85; }
+.hero-stats b { display: block; font-size: 24px; letter-spacing: -.01em; text-transform: none; opacity: 1; font-variant-numeric: tabular-nums; }
+.pick { display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 10px; padding: 10px 18px; border-top: 1px solid var(--line); align-items: center; }
+.pick .no { font-weight: 800; color: var(--muted); font-size: 15px; }
+.pick .m { font-weight: 600; font-size: 14.5px; }
+.pick .m small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.pick .r { text-align: right; font-variant-numeric: tabular-nums; }
+.pick .r b { display: block; font-size: 17px; }
+.pick .r small { color: var(--muted); font-size: 12.5px; }
+.pick .bet { grid-column: 2 / 4; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pick .bet .chip b { color: var(--ink); }
+.pick .add { margin-left: auto; font-size: 12.5px; padding: 3px 9px; }
+.hero-foot { padding: 12px 18px 16px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.hero-foot .sub { flex: 1 1 200px; }
+.hero .none { padding: 22px 18px; color: var(--muted); font-size: 14px; }
 .minodds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; font-size: 13.5px; }
 .fxlist { max-height: 72vh; overflow: auto; margin: 0 -6px; padding: 0 6px; }
 .day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 4px; }
@@ -175,8 +203,8 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
     </div>
     <div class="actions">
       <nav class="nav">
-        <button data-view="ticket" class="on">Tiket</button>
-        <button data-view="suggest">Prijedlozi</button>
+        <button data-view="suggest" class="on">★ Prijedlozi</button>
+        <button data-view="ticket">Tiket</button>
         <button data-view="history">Moji tiketi <span id="navcount"></span></button>
       </nav>
       <button class="btn" id="refresh" title="Ponovno skini rezultate i kvote">Osvježi podatke</button>
@@ -184,9 +212,9 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
   </header>
 
   <section id="history" hidden></section>
-  <section id="suggest" hidden></section>
+  <section id="suggest"><div class="loading">Učitavam prijedloge…</div></section>
 
-  <div class="grid" id="ticketview">
+  <div class="grid" id="ticketview" hidden>
     <section class="card">
       <h2>Tvoj tiket</h2>
       <div id="legs"></div>
@@ -221,7 +249,7 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const pct = p => p == null ? "–" : (p * 100).toLocaleString("hr-HR", {maximumFractionDigits: p < 0.1 ? 1 : 0, minimumFractionDigits: p < 0.1 ? 1 : 0}) + " %";
+const pct = p => p == null ? "–" : p > 0 && p < 0.001 ? "< 0,1 %" : (p * 100).toLocaleString("hr-HR", {maximumFractionDigits: p < 0.1 ? 1 : 0, minimumFractionDigits: p < 0.1 ? 1 : 0}) + " %";
 const num = (x, d = 2) => x == null ? "–" : x.toLocaleString("hr-HR", {minimumFractionDigits: d, maximumFractionDigits: d});
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
@@ -394,7 +422,7 @@ function renderSide() {
       if (f.iso !== day) { day = f.iso; html += `<div class="day">${new Date(f.iso).toLocaleDateString("hr-HR", {weekday: "long", day: "numeric", month: "long"})}</div>`; }
       const lg = lgs.find(l => l.code === f.league);
       const ob = k => `<button data-fx="${INIT.fixtures.indexOf(f)}" data-b="${k}" title="Dodaj na tiket"><span>${k}</span><b>${f.odds[k] ? num(f.odds[k]) : "–"}</b></button>`;
-      html += `<div class="fx"><div class="fx-teams"><span>${esc(f.home)} – ${esc(f.away)}</span><small>${esc(f.time)} · ${lg.flag} ${esc(lg.name)}</small></div>
+      html += `<div class="fx"><div class="fx-teams"><span>${esc(f.home)} – ${esc(f.away)}</span><small>${Engine.hrTime(f)} · ${lg.flag} ${esc(lg.name)}</small></div>
         <div class="fx-odds">${ob("1")}${ob("X")}${ob("2")}</div></div>`;
     });
     $("#side").innerHTML = html;
@@ -416,7 +444,7 @@ $("#side").onclick = e => {
 };
 
 /* moji tiketi */
-let HIST = null, histFilter = "all", view = "ticket";
+let HIST = null, histFilter = "all", view = "suggest";
 const ST = {won: ["✓", "Prošao"], lost: ["✗", "Pao"], pending: ["•", "Čeka"]};
 const fmtDate = iso => new Date(iso).toLocaleDateString("hr-HR", {day: "numeric", month: "numeric", year: "numeric"});
 
@@ -428,52 +456,58 @@ function setView(v) {
   if (v === "suggest") renderSuggest();
 }
 
-/* prijedlozi dana */
-let SUG = null, minOdds = store.get("nt-minodds", 1.5);
+/* prijedlog dana i prijedlog tjedna */
+let SUG = null, minOdds = store.get("nt-minodds", 1.5), pickCount = store.get("nt-count", 5);
 const dayLabel = iso => new Date(iso).toLocaleDateString("hr-HR", {weekday: "short", day: "numeric", month: "numeric"});
+const longDay = iso => new Date(iso).toLocaleDateString("hr-HR", {weekday: "long", day: "numeric", month: "long"});
+const parovi = n => `${n} ${n === 1 ? "par" : n % 10 >= 2 && n % 10 <= 4 && (n < 10 || n > 20) ? "para" : "parova"}`;
+
+function heroHTML(kind, title, when, s) {
+  if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
+    <div class="none">Za ovo razdoblje još nema objavljenih kvota${minOdds > 1.3 ? " uz odabranu najmanju kvotu" : ""}. Kvote se objavljuju par dana prije utakmica.</div></div>`;
+  const t = s.total, short = s.picks.length < pickCount;
+  return `<div class="hero h-${kind}">
+    <div class="hero-head"><h2>${title}</h2><div class="when">${when} · ${parovi(s.picks.length)} od ${s.considered} utakmica</div>
+      <div class="hero-stats"><div>Šansa svih<b>${pct(t.p)}</b></div><div>Ukupna kvota<b>${num(t.odds)}</b></div>
+        <div>Prolazi<b>1 od ${Math.max(1, Math.round(1 / t.p))}</b></div></div></div>
+    ${s.picks.map((r, i) => `<div class="pick">
+      <span class="no">${i + 1}</span>
+      <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${esc(r.flag)} ${esc(r.leagueName)} · ${dayLabel(r.date)} ${esc(r.time || "")}</small></span>
+      <span class="r"><b>${pct(r.p)}</b><small>šansa</small></span>
+      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span><span class="chip">kvota <b>${num(r.odds)}</b></span>
+        <button class="btn add" data-sug="${kind}:${i}">+ tiket</button></span>
+    </div>`).join("")}
+    <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} s kvotom barem ${num(minOdds)}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
+      <button class="btn primary" data-sugall="${kind}">Dodaj svih ${s.picks.length} na tiket</button></div>
+  </div>`;
+}
+
 async function renderSuggest() {
-  SUG = await api("/api/suggestions", {minOdds});
-  const el = $("#suggest");
-  const picker = `<div class="minodds lgf">Kvota barem: ${[1.3, 1.5, 1.8, 2.0, 2.5].map(o =>
-    `<button data-min="${o}" class="${o === minOdds ? "on" : ""}">${num(o)}</button>`).join("")}</div>`;
-  if (!SUG.picks.length) {
-    el.innerHTML = `<div class="card"><h2>Prijedlozi dana</h2>${picker}<div class="empty">Trenutno nema dovoljno objavljenih kvota za prijedloge. Kvote se objavljuju par dana prije utakmica, pa svrati sutra.</div></div>`;
-    return;
-  }
-  const t = SUG.total;
-  const cards = SUG.picks.map((r, i) => `<div class="tk">
-      <div class="tk-head"><div><b>${i + 1}. ${esc(r.home)} – ${esc(r.away)}</b>
-        <span class="sub">· ${esc(r.leagueName)} · ${dayLabel(r.date)} ${esc(r.time || "")}</span></div>
-        <button class="btn" data-sug="${i}">Dodaj na tiket</button></div>
-      <div class="res-top" style="margin-top:8px"><div class="pct">${pct(r.p)}</div>
-        <div class="bar"><i style="width:${r.p * 100}%"></i></div></div>
-      <div class="chips"><span class="chip">Oklada <b>${esc(r.betLabel)}</b></span>
-        <span class="chip">Kvota <b>${num(r.odds)}</b></span>
-        <span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>
-        <span class="chip">${esc(r.flag)} ${esc(r.leagueName)}</span></div>
-    </div>`).join("");
-  el.innerHTML = `<div class="hgrid">
-    <div class="card"><h2>Prijedlozi dana</h2>
-      <p class="sub" style="margin-top:-6px">Utakmice ${SUG.from === SUG.to ? dayLabel(SUG.from) : dayLabel(SUG.from) + " – " + dayLabel(SUG.to)} · pregledano ${SUG.considered} utakmica</p>
-      ${picker}${cards}</div>
-    <div>
-      <div class="summary" style="margin-top:0"><div class="lbl">Svih ${SUG.picks.length} na jednom tiketu</div>
-        <div class="big">${pct(t.p)}</div>
-        <div class="sumgrid"><div><div class="lbl">Ukupna kvota</div><div class="v">${num(t.odds)}</div></div>
-          <div><div class="lbl">Fer kvota</div><div class="v">${num(1 / t.p)}</div></div></div>
-        <div class="note">Ovakav tiket u prosjeku prolazi <b>1 put od ${Math.round(1 / t.p)}</b>. Sigurnije je igrati ih pojedinačno ili po 2–3.</div>
-        <div class="backup"><button class="btn primary" id="sugAll">Dodaj svih ${SUG.picks.length} na tiket</button></div>
-      </div>
-      <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
-        <p class="sub" style="margin:0">Odabereš najmanju kvotu koja te zanima, a aplikacija iz svake utakmice uzme okladu s najvećom šansom
-        (1, X, 2, 3+ ili 0-2 gola) i pokaže 5 najsigurnijih. Viša kvota znači manju šansu, jer kvota je cijena šanse.</p>
-        <p class="sub">Provjera na prošloj sezoni (22 lige): kvote kladionica bile su točnije od samog modela, pa se šanse ovdje oslanjaju na kvote.
-        Nijedan način biranja nije dugoročno pobijedio kladionice: one uzimaju oko 5 % marže. Prijedlozi su najvjerojatnije oklade, a ne zajamčena zarada.</p>
-        <p class="sub">Kvote su prosjek kladionica; u tvojoj mogu biti malo drukčije. Ako je tvoja kvota viša od prosjeka, to ti ide u korist.</p></div>
-    </div></div>`;
+  SUG = await api("/api/picks", {minOdds, count: pickCount});
+  if (!SUG) return;
+  const seg = (attr, vals, cur, fmt) => `<span class="seg">${vals.map(v => `<button ${attr}="${v}" class="${v === cur ? "on" : ""}">${fmt(v)}</button>`).join("")}</span>`;
+  const d = SUG.day, w = SUG.week;
+  const dayTitle = d.isToday ? "PRIJEDLOG DANA" : "PRIJEDLOG DANA";
+  const dayWhen = d.isToday ? `Danas, ${longDay(d.date)}` : `Danas više nema utakmica · ${longDay(d.date)}`;
+  const weekWhen = `${dayLabel(w.from)} – ${dayLabel(w.to)}${w.lastFixture && w.lastFixture < w.to ? ` · kvote objavljene do ${dayLabel(w.lastFixture)}` : ""}`;
+  $("#suggest").innerHTML = `
+    <div class="picks-ctrl">
+      <label>Broj parova ${seg("data-count", [5, 10], pickCount, v => v)}</label>
+      <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], minOdds, v => num(v))}</label>
+    </div>
+    <div class="picks-grid">
+      ${heroHTML("day", dayTitle, dayWhen, d)}
+      ${heroHTML("week", "PRIJEDLOG TJEDNA", weekWhen, w)}
+    </div>
+    <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
+      <p class="sub" style="margin:0">Iz svake utakmice uzima se oklada s najvećom šansom (1, X, 2, 3+ ili 0-2 gola) čija je kvota barem odabrana, pa se prikaže ${pickCount} najsigurnijih.
+      <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
+      <p class="sub">Viša kvota znači manju šansu, jer kvota je cijena šanse. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
+      Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p>
+      <p class="sub">Kladionice obično objavljuju kvote samo za iduće kolo, pa prijedlog tjedna često pokriva manje od punih 7 dana.</p></div>`;
 }
 function addLegs(rs, replace) {
-  if (replace) legs = legs.filter(l => l.home.trim() || l.away.trim());
+  if (replace) legs = [];
   for (const r of rs) {
     const odds = String(r.odds).replace(".", ",");
     const empty = legs.find(l => !l.home.trim() && !l.away.trim());
@@ -485,10 +519,19 @@ function addLegs(rs, replace) {
 $("#suggest").onclick = e => {
   const m = e.target.closest("[data-min]");
   if (m) { minOdds = +m.dataset.min; store.set("nt-minodds", minOdds); return renderSuggest(); }
+  const c = e.target.closest("[data-count]");
+  if (c) { pickCount = +c.dataset.count; store.set("nt-count", pickCount); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");
-  if (b) return addLegs([SUG.picks[+b.dataset.sug]]);
-  if (e.target.id === "sugAll") addLegs(SUG.picks);
+  if (b) { const [k, i] = b.dataset.sug.split(":"); return addLegs([SUG[k === "day" ? "day" : "week"].picks[+i]]); }
+  const all = e.target.closest("[data-sugall]");
+  if (all) {
+    const hasLegs = legs.some(l => l.home.trim() || l.away.trim());
+    const replace = hasLegs && confirm("Na tiketu već imaš parove.\n\nU redu = zamijeni tiket prijedlogom\nOdustani = dodaj prijedlog postojećim parovima");
+    addLegs(SUG[all.dataset.sugall === "day" ? "day" : "week"].picks, replace);
+  }
 };
+// Prijedlozi ovise o današnjem datumu: osvježi kad se aplikacija ponovno otvori.
+document.addEventListener("visibilitychange", () => { if (!document.hidden && INIT && view === "suggest") renderSuggest(); });
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 async function loadHistory(render) {
@@ -581,13 +624,13 @@ function applyInit(d) {
 
 $("#refresh").onclick = async () => {
   const b = $("#refresh"); b.disabled = true; b.textContent = "Osvježavam…";
-  try { applyInit(await api("/api/refresh", {})); compute(); loadHistory(false); } finally { b.disabled = false; b.textContent = "Osvježi podatke"; }
+  try { applyInit(await api("/api/refresh", {})); compute(); loadHistory(false); renderSuggest(); } finally { b.disabled = false; b.textContent = "Osvježi podatke"; }
 };
 
 (async () => {
   try { applyInit(await api("/api/init")); }
   catch (e) { $("#sub").textContent = "Nema podataka: " + e.message + ". Provjeri internet i osvježi."; return; }
-  renderLegs(); compute(); loadHistory(false);
+  renderLegs(); compute(); loadHistory(false); renderSuggest();
 })();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>

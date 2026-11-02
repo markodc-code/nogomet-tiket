@@ -192,7 +192,7 @@ const Engine = (() => {
       p, pModel, pMarket: mk[B] ?? null, source,
       fairOdds: p > 0 ? 1 / p : null, odds, value: odds ? p * odds - 1 : null,
       xg: [lh, la], xgModel: [mlh, mla], scores: scores.slice(0, 6), basic,
-      date: fx ? fx.iso : null, time: fx ? fx.time : null, homeRow: row(h), awayRow: row(a),
+      date: fx ? fx.iso : null, time: fx ? hrTime(fx) : null, homeRow: row(h), awayRow: row(a),
     };
   }
 
@@ -288,12 +288,17 @@ const Engine = (() => {
   // Zato biramo oklade s najvećom šansom među onima čija je kvota barem minOdds,
   // najviše jednu po utakmici.
   const MARKETS = [["1", "1"], ["X", "X"], ["2", "2"], ["3+", "O2.5"], ["0-2", "U2.5"]];
-  function suggestions(minOdds = 1.5, count = 5, days = 3) {
-    if (!D || !D.fixtures.length) return {picks: [], minOdds};
-    const first = D.fixtures[0].iso;
-    const until = new Date(new Date(first).getTime() + (days - 1) * 864e5).toISOString().slice(0, 10);
-    let pool = D.fixtures.filter(f => f.iso <= until);
-    if (pool.length < count * 2) pool = D.fixtures;
+  // Vrijeme u podacima je britansko; Hrvatska je uvijek sat ispred.
+  const localIso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  function kickoff(f) {
+    const [h, m] = (f.time || "12:00").split(":").map(Number);
+    const d = new Date(f.iso + "T00:00:00");
+    d.setHours(h + 1, m || 0);
+    return d;
+  }
+  const notStarted = (f, now) => kickoff(f) > now;
+
+  function pickFrom(pool, minOdds, count) {
     const best = [];
     for (const f of pool) {
       let top = null;
@@ -313,8 +318,28 @@ const Engine = (() => {
       p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1),
     } : null;
     if (total) total.value = total.p * total.odds - 1;
-    return {picks, total, minOdds, from: pool[0]?.iso, to: pool[pool.length - 1]?.iso, considered: pool.length};
+    return {picks, total, considered: pool.length};
   }
+
+  // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
+  // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana.
+  function picks(minOdds = 1.5, count = 5, now = new Date()) {
+    if (!D) return null;
+    const today = localIso(now);
+    const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
+    const open = D.fixtures.filter(f => notStarted(f, now)).map(f => ({...f, kickoff: kickoff(f)}));
+    const todays = open.filter(f => localIso(f.kickoff) === today);
+    const dayIso = todays.length ? today : (open[0] ? localIso(open[0].kickoff) : today);
+    const dayPool = todays.length ? todays : open.filter(f => localIso(f.kickoff) === dayIso);
+    const weekPool = open.filter(f => localIso(f.kickoff) <= weekEnd);
+    const lastFixture = D.fixtures.length ? D.fixtures[D.fixtures.length - 1].iso : null;
+    return {
+      minOdds, count, today,
+      day: {...pickFrom(dayPool, minOdds, count), date: dayIso, isToday: dayIso === today},
+      week: {...pickFrom(weekPool, minOdds, count), from: today, to: weekEnd, lastFixture},
+    };
+  }
+  const hrTime = f => { const k = kickoff(f); return `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`; };
 
   function initPayload() {
     return {
@@ -332,7 +357,7 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
-    if (path === "/api/suggestions") return suggestions(body?.minOdds || 1.5);
+    if (path === "/api/picks") return picks(body?.minOdds || 1.5, body?.count || 5);
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);
@@ -349,5 +374,5 @@ const Engine = (() => {
     return added;
   }
 
-  return {api, exportTickets, importTickets, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, exportTickets, importTickets, hrTime, _test: {findTeam, settleBet, matrix, betProbability}};
 })();
