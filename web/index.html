@@ -164,8 +164,8 @@ h1 span { color: var(--tint-text); }
 .ob.on span { color: var(--tint-ink); opacity: .85; }
 .ob:disabled { opacity: .35; }
 @media (max-width: 520px) { .fx-odds { margin-left: 0; } }
-.fx-odds.b6 { grid-template-columns: repeat(6, 1fr); }
-@media (max-width: 620px) { .fx-odds.b6 { grid-template-columns: repeat(3, 1fr); margin-left: 0; } }
+@media (max-width: 620px) { .fx-odds { margin-left: 0; gap: 5px; } .ob span { font-size: 10px; } .ob b { font-size: 14px; } }
+.ob span { white-space: normal; text-align: center; line-height: 1.15; }
 .ob.prob b { font-size: 14px; color: var(--muted); }
 .ob.on.prob b { color: var(--tint-ink); }
 .sports { display: flex; gap: 10px; margin-bottom: 14px; }
@@ -449,6 +449,7 @@ function toast(msg, onTap) {
 function basketBetOptions(l) {
   const L = l.lines || {spread: -0.5, total: 160.5};
   const opts = ["1", "2", `H1:${L.spread}`, `H2:${-L.spread}`, `O:${L.total}`, `U:${L.total}`];
+  if (L.home != null) opts.push(`DO:${L.home}`, `DU:${L.home}`, `GO:${L.away}`, `GU:${L.away}`);
   if (!opts.includes(l.bet)) opts.push(l.bet);
   return opts.map(b => `<option value="${esc(b)}" ${b === l.bet ? "selected" : ""}>${esc(Engine.basketLabel(b))}</option>`).join("");
 }
@@ -630,7 +631,9 @@ function renderSummary(t) {
 }
 
 /* ---------- utakmice po danima ---------- */
-const BTNS = [["1", "1"], ["X", "X"], ["2", "2"], ["3+", "O2.5"], ["0-2", "U2.5"]];
+// 10 najčešćih nogometnih oklada (drugi član: ključ kvote u podacima, ako postoji)
+const BTNS = [["1", "1"], ["X", "X"], ["2", "2"], ["1X", null], ["X2", null],
+  ["12", null], ["GG", null], ["NG", null], ["3+", "O2.5"], ["0-2", "U2.5"]];
 const legFor = (home, away, sp = "nog") => legs.find(l => l.home === home && l.away === away && (l.sport || "nog") === sp);
 const leagueOf = code => INIT.leagues.find(l => l.code === code);
 const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter);
@@ -705,6 +708,10 @@ function basketButtons(f) {
     [`H2:${-L.spread}`, `H2 ${fmtL(-L.spread)}`, L.market ? o.H2 : null],
     [`O:${L.total}`, `više ${num(L.total, 1).replace(",0", "")}`, o.total === L.total ? o.O : null],
     [`U:${L.total}`, `manje ${num(L.total, 1).replace(",0", "")}`, o.total === L.total ? o.U : null],
+    [`DO:${L.home}`, `dom. više ${num(L.home, 1).replace(",0", "")}`, null],
+    [`DU:${L.home}`, `dom. manje ${num(L.home, 1).replace(",0", "")}`, null],
+    [`GO:${L.away}`, `gost više ${num(L.away, 1).replace(",0", "")}`, null],
+    [`GU:${L.away}`, `gost manje ${num(L.away, 1).replace(",0", "")}`, null],
   ];
 }
 function renderBasket() {
@@ -740,7 +747,7 @@ function renderBasket() {
     return `<div class="fx">
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
         <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
-      <div class="fx-odds b6">${basketButtons(f).map(([bet, label, odds]) => {
+      <div class="fx-odds">${basketButtons(f).map(([bet, label, odds]) => {
         const on = leg && leg.bet === bet, pr = Engine.basketProbFor(f, bet);
         return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
           <span>${esc(label)}</span><b>${pct(pr)}</b></button>`;
@@ -793,7 +800,7 @@ $("#side").onclick = e => {
   }
   const b = e.target.closest("[data-fx]"); if (!b) return;
   const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b, key = BTNS.find(x => x[0] === bet)[1];
-  const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: Engine.hrTime(f)}, bet, f.odds[key]);
+  const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: Engine.hrTime(f)}, bet, key ? f.odds[key] : null);
   renderSide();
   const n = filledLegs().length;
   toast(`${msg} · ${parovi(n)}`, isNarrow() ? () => setPane("ticket") : null);

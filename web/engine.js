@@ -253,6 +253,10 @@ const Engine = (() => {
     if (k === "H2") return `Hendikep gost ${fmtLine(x)}`;
     if (k === "O") return `Više od ${x.toLocaleString("hr-HR")} poena`;
     if (k === "U") return `Manje od ${x.toLocaleString("hr-HR")} poena`;
+    if (k === "DO") return `Domaćin više od ${x.toLocaleString("hr-HR")} poena`;
+    if (k === "DU") return `Domaćin manje od ${x.toLocaleString("hr-HR")} poena`;
+    if (k === "GO") return `Gost više od ${x.toLocaleString("hr-HR")} poena`;
+    if (k === "GU") return `Gost manje od ${x.toLocaleString("hr-HR")} poena`;
     return bet;
   }
   function basketExpect(lg, h, a, fx) {
@@ -275,7 +279,8 @@ const Engine = (() => {
     const e = basketExpect(lg, f.home, f.away, f);
     const spread = o.spread != null ? o.spread : -(Math.floor(e.margin) + 0.5);
     const total = o.total != null ? o.total : Math.floor(e.total) + 0.5;
-    return {spread, total, market: o.spread != null};
+    const home = Math.floor(e.total / 2 + e.margin / 2) + 0.5, away = Math.floor(e.total / 2 - e.margin / 2) + 0.5;
+    return {spread, total, home, away, market: o.spread != null};
   }
   function basketProb(e, bet) {
     const [k, v] = String(bet).split(":"), x = parseFloat(v);
@@ -285,6 +290,13 @@ const Engine = (() => {
     if (k === "H2") return PHI((x - e.margin) / e.sdM);
     if (k === "O") return 1 - PHI((x - e.total) / e.sdT);
     if (k === "U") return PHI((x - e.total) / e.sdT);
+    // poeni jedne momčadi: srednja vrijednost iz zbroja i razlike, raspršenost iz obje
+    const sdTeam = Math.sqrt(e.sdT * e.sdT + e.sdM * e.sdM) / 2;
+    const ph = e.total / 2 + e.margin / 2, pa = e.total / 2 - e.margin / 2;
+    if (k === "DO") return 1 - PHI((x - ph) / sdTeam);
+    if (k === "DU") return PHI((x - ph) / sdTeam);
+    if (k === "GO") return 1 - PHI((x - pa) / sdTeam);
+    if (k === "GU") return PHI((x - pa) / sdTeam);
     throw new Error("Nepoznata košarkaška oklada: " + bet);
   }
   // Šansa za gumb u ponudi (bez kvote kladionica, npr. Euroliga).
@@ -300,6 +312,10 @@ const Engine = (() => {
     if (k === "H2") return as - hs + x > 0;
     if (k === "O") return hs + as > x;
     if (k === "U") return hs + as < x;
+    if (k === "DO") return hs > x;
+    if (k === "DU") return hs < x;
+    if (k === "GO") return as > x;
+    if (k === "GU") return as < x;
     throw new Error("Nepoznata košarkaška oklada: " + bet);
   }
   function marketPair(o, bet, lines) {
@@ -320,7 +336,8 @@ const Engine = (() => {
     if (BI.where[h] !== BI.where[a]) return {error: `${h} i ${a} nisu u istoj ligi.`};
     const lg = BL[BI.where[h]], fx = bFix[h + "|" + a], bet = String(leg.bet || "1").trim();
     const e = basketExpect(lg, h, a, fx);
-    const lines = fx ? basketLines(fx) : {spread: -(Math.floor(e.margin) + 0.5), total: Math.floor(e.total) + 0.5, market: false};
+    const lines = fx ? basketLines(fx) : {spread: -(Math.floor(e.margin) + 0.5), total: Math.floor(e.total) + 0.5,
+      home: Math.floor(e.total / 2 + e.margin / 2) + 0.5, away: Math.floor(e.total / 2 - e.margin / 2) + 0.5, market: false};
     let p, pModel;
     try {
       p = basketProb(e, bet);
@@ -434,7 +451,9 @@ const Engine = (() => {
     const k = f.home + "|" + f.away;
     if (!probCache[k]) {
       const r = evaluateLeg({home: f.home, away: f.away, bet: "1"});
-      probCache[k] = r.error ? {} : {"1": r.basic["1"], "X": r.basic.X, "2": r.basic["2"], "3+": r.basic["O2.5"], "0-2": 1 - r.basic["O2.5"], source: r.source};
+      const b = r.basic || {};
+      probCache[k] = r.error ? {} : {"1": b["1"], "X": b.X, "2": b["2"], "1X": b["1"] + b.X, "X2": b.X + b["2"], "12": b["1"] + b["2"],
+        "GG": b.GG, "NG": 1 - b.GG, "3+": b["O2.5"], "0-2": 1 - b["O2.5"], source: r.source};
     }
     return probCache[k];
   }
