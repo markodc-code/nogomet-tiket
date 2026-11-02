@@ -1,4 +1,4 @@
-# Nogometni tiket
+# Džavke prati, pare vrati
 
 Upišeš parove iz 22 europske lige (Engleska 1.–5. liga, Škotska 1.–4., Njemačka, Italija, Španjolska i Francuska 1.–2., Nizozemska, Portugal, Belgija, Turska, Grčka) i što si odigrao, a aplikacija iz statistike izračuna šansu da tiket prođe. Spremljene tikete sama provjerava kad utakmice završe.
 

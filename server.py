@@ -1,4 +1,4 @@
-"""Nogometni tiket - lokalno pokretanje. Pokreni: python server.py
+"""Džavke prati, pare vrati - lokalno pokretanje. Pokreni: python server.py
 
 Pripremi web/data.json (rezultati, kvote, model) i posluži mapu web/ na
 http://127.0.0.1:8765. Ista stranica radi i objavljena na internetu.

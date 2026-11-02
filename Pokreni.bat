@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Nogometni tiket
+title Dzavke prati, pare vrati
 cd /d "%~dp0"
 python server.py
 pause
