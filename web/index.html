@@ -957,7 +957,7 @@ function renderHistory() {
         <span class="badge ${t.status}">${ST[t.status][1]}</span></div>
       <ul class="tk-legs">${t.legs.map(l => `<li class="${l.status}"><span class="st">${ST[l.status][0]}</span>
         <span>${esc(l.home)} – ${esc(l.away)}<br><small>${esc(l.betLabel)}</small></span>
-        <span style="text-align:right">${l.score ? `<b>${l.score}</b>` : `<small>${l.date ? shortDay(l.date) : "čeka"}</small>`}<br><small>${pct(l.p)}</small></span></li>`).join("")}</ul>
+        <span style="text-align:right"><small>${l.date ? shortDay(l.date) : ""}${l.time ? " u " + esc(l.time) : ""}</small><br>${l.score ? `<b>${l.score}</b> · ` : ""}<small>${pct(l.p)}</small></span></li>`).join("")}</ul>
       <div class="tk-foot"><span>Šansa <b>${pct(t.p)}</b></span>
         ${t.stake ? `<span>Ulog <b>${num(t.stake)} €</b></span>` : ""}
         ${t.stake && t.odds && t.status !== "lost" ? `<span>${t.status === "won" ? "Dobitak" : "Mogući dobitak"} <b>${num(t.stake * t.odds)} €</b></span>` : ""}

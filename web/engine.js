@@ -369,7 +369,7 @@ const Engine = (() => {
     const t = {
       id: now.getTime().toString(36) + Math.random().toString(36).slice(2, 6),
       created: now.toISOString().slice(0, 19), stake, p: ev.total.p, odds: ev.total.odds ?? null,
-      legs: legs.map(r => ({home: r.home, away: r.away, league: r.league, bet: r.bet, betLabel: r.betLabel, p: r.p, odds: r.odds, date: r.date, sport: r.sport || "nog"})),
+      legs: legs.map(r => ({home: r.home, away: r.away, league: r.league, bet: r.bet, betLabel: r.betLabel, p: r.p, odds: r.odds, date: r.date, time: r.time, sport: r.sport || "nog"})),
     };
     const all = loadTickets(); all.push(t);
     return storeTickets(all) ? {ok: true, id: t.id} : {error: "Preglednik ne dopušta spremanje (privatni način?)."};
@@ -389,6 +389,10 @@ const Engine = (() => {
       const created = t.created.slice(0, 10);
       let status = "won";
       for (const leg of t.legs) {
+        if (!leg.time) {
+          const fx = leg.sport === "kos" ? bFix[leg.home + "|" + leg.away] : fixByPair[leg.home + "|" + leg.away];
+          if (fx) { leg.time = leg.sport === "kos" ? fx.time : hrTime(fx); if (!leg.date) leg.date = fx.iso; }
+        }
         const g = findResult(leg, created);
         if (g) {
           leg.score = `${g[1]}:${g[2]}`; leg.playedOn = g[0];
