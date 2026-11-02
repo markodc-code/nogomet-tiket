@@ -257,6 +257,8 @@ details[open] summary::after { content: " ‹"; }
 .hero-stats b { display: block; font-size: 26px; letter-spacing: -.02em; text-transform: none; opacity: 1; font-variant-numeric: tabular-nums; }
 .pick { display: grid; grid-template-columns: 24px 1fr auto; gap: 4px 10px; padding: 12px 16px; border-top: .5px solid var(--line); align-items: center; }
 .pick:first-of-type { border-top: 0; }
+.pick-day { padding: 9px 16px 5px; font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; background: var(--fill2); }
+.pick-day + .pick { border-top: 0; }
 .pick .no { font-weight: 800; color: var(--muted); font-size: 15px; }
 .pick .m { font-weight: 600; font-size: 15.5px; min-width: 0; }
 .pick .m small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
@@ -810,7 +812,7 @@ let SUG = null, minOdds = store.get("nt-minodds", 1.5), maxP = store.get("nt-max
 let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
 const SPORT_ICON = {nog: "⚽", kos: "🏀"};
 
-const filterText = () => pickMode === "chance" ? `sa šansom do ${pct(maxP)}` : `s kvotom barem ${num(minOdds)}`;
+const filterText = () => pickMode === "chance" ? `sa šansom ${Math.round((maxP - 0.1) * 100)}–${Math.round(maxP * 100)} %` : `s kvotom barem ${num(minOdds)}`;
 function heroHTML(kind, title, when, s) {
   if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
     <div class="none">Nema utakmica ${filterText()}. Probaj manju granicu.</div></div>`;
@@ -822,7 +824,8 @@ function heroHTML(kind, title, when, s) {
         <div>Prosječna šansa<b>${pct(s.picks.reduce((x, r) => x + r.p, 0) / s.picks.length)}</b></div></div></div>
     ${s.picks.map((r, i) => {
       const leg = legFor(r.home, r.away, r.sport), on = leg && leg.bet === r.bet;
-      return `<div class="pick">
+      const dayHead = kind === "week" && (i === 0 || s.picks[i - 1].date !== r.date) ? `<div class="pick-day">${fullDay(r.date)}</div>` : "";
+      return `${dayHead}<div class="pick">
       <span class="no">${i + 1}</span>
       <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${SPORT_ICON[r.sport] || ""} ${esc(r.leagueName)} · ${shortDay(r.date)} ${esc(r.time || "")}</small></span>
       <span class="r"><b>${pct(r.p)}</b><small>šansa</small></span>
@@ -853,7 +856,8 @@ async function renderSuggest() {
     </div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
-      Biraš <b>ili</b> najmanju kvotu <b>ili</b> najveću šansu (uključen je samo jedan filter). „Šansa do 30 %“ znači oklade sa šansom najviše 30 %, dakle s većim kvotama. Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
+      Biraš <b>ili</b> najmanju kvotu <b>ili</b> najveću šansu (uključen je samo jedan filter). „Šansa do 30 %“ znači oklade sa šansom između 20 i 30 %, dakle s većim kvotama.
+      Prijedlozi uvijek uključuju sve sportove (⚽ nogomet, 🏀 NBA i Euroliga), a tjedni su raspoređeni kroz dane i složeni po datumu. Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
       <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
       <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;

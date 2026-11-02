@@ -459,25 +459,45 @@ const Engine = (() => {
     }
     return out;
   }
-  function pickFrom(pool, minOdds, maxP, count) {  // filtrira ili po kvoti (barem) ili po šansi (najviše)
+  // Filter: ili kvota barem minOdds, ili šansa u rasponu (maxP - 10 %, maxP].
+  const BAND = 0.10;
+  function pickFrom(pool, minOdds, maxP, count, spread) {
+    const minP = maxP < 1 ? maxP - BAND : 0;
     const best = [];
     for (const item of pool) {
       let top = null;
-      for (const c of candidates(item)) if (c.odds >= minOdds && c.p <= maxP && (!top || c.p > top.p)) top = c;
+      for (const c of candidates(item)) {
+        if (c.odds >= minOdds && c.p <= maxP && c.p > minP && (!top || c.p > top.p)) top = c;
+      }
       if (!top) continue;
       const f = item.f, leg = {home: f.home, away: f.away, bet: top.bet, odds: top.odds, sport: item.sport};
       const r = item.sport === "kos" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
       if (r.error) continue;
-      best.push({...r, sport: item.sport, est: top.est, ev: r.p * top.odds - 1,
+      best.push({...r, sport: item.sport, est: top.est, ev: r.p * top.odds - 1, k: item.k.getTime(),
         date: localIso(item.k), time: `${String(item.k.getHours()).padStart(2, "0")}:${String(item.k.getMinutes()).padStart(2, "0")}`,
         lines: item.sport === "kos" ? basketLines(f) : undefined});
     }
     best.sort((a, b) => b.p - a.p);
-    const picks = best.slice(0, count);
+
+    // Svaki sport mora biti zastupljen (bar 1, a uz 10 parova bar 2), ostatak po šansi.
+    // Tjedni prijedlog k tome raspoređuje parove kroz dane (najviše trećina na isti dan).
+    const sports = [...new Set(best.map(x => x.sport))];
+    const quota = count >= 10 ? 2 : 1, dayCap = spread ? Math.ceil(count / 3) : Infinity;
+    const chosen = [], perDay = {};
+    const take = r => { chosen.push(r); perDay[r.date] = (perDay[r.date] || 0) + 1; };
+    for (const sp of sports) best.filter(r => r.sport === sp).slice(0, quota).forEach(r => { if (chosen.length < count) take(r); });
+    for (const capOn of [true, false]) {
+      for (const r of best) {
+        if (chosen.length >= count) break;
+        if (chosen.includes(r)) continue;
+        if (capOn && (perDay[r.date] || 0) >= dayCap) continue;
+        take(r);
+      }
+    }
+    const picks = chosen.sort((a, b) => a.k - b.k);
     const total = picks.length ? {p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1)} : null;
     if (total) total.value = total.p * total.odds - 1;
-    const sports = new Set(pool.map(x => x.sport));
-    return {picks, total, considered: pool.length, sports: [...sports]};
+    return {picks, total, considered: pool.length, sports: [...new Set(pool.map(x => x.sport))], minP};
   }
 
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
@@ -497,8 +517,8 @@ const Engine = (() => {
     const lastFixture = open.length ? localIso(open[open.length - 1].k) : null;
     return {
       minOdds, maxP, count, today,
-      day: {...pickFrom(dayPool, minOdds, maxP, count), date: dayIso, isToday: dayIso === today},
-      week: {...pickFrom(weekPool, minOdds, maxP, count), from: today, to: weekEnd, lastFixture},
+      day: {...pickFrom(dayPool, minOdds, maxP, count, false), date: dayIso, isToday: dayIso === today},
+      week: {...pickFrom(weekPool, minOdds, maxP, count, true), from: today, to: weekEnd, lastFixture},
     };
   }
   const hrTime = f => { const k = kickoff(f); return `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`; };
