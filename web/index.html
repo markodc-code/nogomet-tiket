@@ -806,11 +806,11 @@ function setView(v) {
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 /* ---------- prijedlog dana i prijedlog tjedna ---------- */
-let SUG = null, minOdds = store.get("nt-minodds", 1.5), minP = store.get("nt-minp", 0.5), pickCount = store.get("nt-count", 5);
+let SUG = null, minOdds = store.get("nt-minodds", 1.5), maxP = store.get("nt-maxp2", 0.5), pickCount = store.get("nt-count", 5);
 let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
 const SPORT_ICON = {nog: "⚽", kos: "🏀"};
 
-const filterText = () => pickMode === "chance" ? `sa šansom barem ${pct(minP)}` : `s kvotom barem ${num(minOdds)}`;
+const filterText = () => pickMode === "chance" ? `sa šansom do ${pct(maxP)}` : `s kvotom barem ${num(minOdds)}`;
 function heroHTML(kind, title, when, s) {
   if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
     <div class="none">Nema utakmica ${filterText()}. Probaj manju granicu.</div></div>`;
@@ -835,7 +835,7 @@ function heroHTML(kind, title, when, s) {
 }
 
 async function renderSuggest() {
-  SUG = await api("/api/picks", {mode: pickMode, minOdds, minP, count: pickCount});
+  SUG = await api("/api/picks", {mode: pickMode, minOdds, maxP, count: pickCount});
   if (!SUG) return;
   const seg = (attr, vals, cur, fmt) => `<span class="seg">${vals.map(v => `<button ${attr}="${v}" class="${v === cur ? "on" : ""}">${fmt(v)}</button>`).join("")}</span>`;
   const d = SUG.day, w = SUG.week;
@@ -845,7 +845,7 @@ async function renderSuggest() {
     <div class="picks-ctrl">
       <label>Parova ${seg("data-count", [5, 10], pickCount, v => v)}</label>
       <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], pickMode === "odds" ? minOdds : null, v => num(v))}</label>
-      <label>ili šansa barem ${seg("data-minp", [0.3, 0.4, 0.5, 0.6, 0.7], pickMode === "chance" ? minP : null, v => Math.round(v * 100) + " %")}</label>
+      <label>ili šansa do ${seg("data-maxp", [0.3, 0.4, 0.5, 0.6, 0.7], pickMode === "chance" ? maxP : null, v => Math.round(v * 100) + " %")}</label>
     </div>
     <div class="picks-grid">
       ${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}
@@ -853,7 +853,7 @@ async function renderSuggest() {
     </div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
-      Biraš <b>ili</b> najmanju kvotu <b>ili</b> najmanju šansu (uključen je samo jedan filter). Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
+      Biraš <b>ili</b> najmanju kvotu <b>ili</b> najveću šansu (uključen je samo jedan filter). „Šansa do 30 %“ znači oklade sa šansom najviše 30 %, dakle s većim kvotama. Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
       <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
       <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;
@@ -875,8 +875,8 @@ function addPicks(rs, replace) {
 $("#suggest").onclick = e => {
   const m = e.target.closest("[data-min]");
   if (m) { minOdds = +m.dataset.min; pickMode = "odds"; store.set("nt-minodds", minOdds); store.set("nt-pickmode", pickMode); return renderSuggest(); }
-  const mp = e.target.closest("[data-minp]");
-  if (mp) { minP = +mp.dataset.minp; pickMode = "chance"; store.set("nt-minp", minP); store.set("nt-pickmode", pickMode); return renderSuggest(); }
+  const mp = e.target.closest("[data-maxp]");
+  if (mp) { maxP = +mp.dataset.maxp; pickMode = "chance"; store.set("nt-maxp2", maxP); store.set("nt-pickmode", pickMode); return renderSuggest(); }
   const c = e.target.closest("[data-count]");
   if (c) { pickCount = +c.dataset.count; store.set("nt-count", pickCount); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");

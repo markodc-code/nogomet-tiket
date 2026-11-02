@@ -459,11 +459,11 @@ const Engine = (() => {
     }
     return out;
   }
-  function pickFrom(pool, minOdds, minP, count) {  // filtrira ili po kvoti ili po šansi (drugo je 0)
+  function pickFrom(pool, minOdds, maxP, count) {  // filtrira ili po kvoti (barem) ili po šansi (najviše)
     const best = [];
     for (const item of pool) {
       let top = null;
-      for (const c of candidates(item)) if (c.odds >= minOdds && c.p >= minP && (!top || c.p > top.p)) top = c;
+      for (const c of candidates(item)) if (c.odds >= minOdds && c.p <= maxP && (!top || c.p > top.p)) top = c;
       if (!top) continue;
       const f = item.f, leg = {home: f.home, away: f.away, bet: top.bet, odds: top.odds, sport: item.sport};
       const r = item.sport === "kos" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
@@ -482,7 +482,7 @@ const Engine = (() => {
 
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
   // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana. Svi sportovi.
-  function picks(minOdds = 1.5, minP = 0.3, count = 5, now = new Date()) {
+  function picks(minOdds = 1.5, maxP = 1, count = 5, now = new Date()) {
     if (!D) return null;
     const today = localIso(now);
     const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
@@ -496,9 +496,9 @@ const Engine = (() => {
     const weekPool = open.filter(x => localIso(x.k) <= weekEnd);
     const lastFixture = open.length ? localIso(open[open.length - 1].k) : null;
     return {
-      minOdds, minP, count, today,
-      day: {...pickFrom(dayPool, minOdds, minP, count), date: dayIso, isToday: dayIso === today},
-      week: {...pickFrom(weekPool, minOdds, minP, count), from: today, to: weekEnd, lastFixture},
+      minOdds, maxP, count, today,
+      day: {...pickFrom(dayPool, minOdds, maxP, count), date: dayIso, isToday: dayIso === today},
+      week: {...pickFrom(weekPool, minOdds, maxP, count), from: today, to: weekEnd, lastFixture},
     };
   }
   const hrTime = f => { const k = kickoff(f); return `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`; };
@@ -525,8 +525,8 @@ const Engine = (() => {
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
     if (path === "/api/picks") return body?.mode === "chance"
-      ? picks(0, body?.minP || 0.5, body?.count || 5)
-      : picks(body?.minOdds || 1.5, 0, body?.count || 5);
+      ? picks(0, body?.maxP || 0.5, body?.count || 5)
+      : picks(body?.minOdds || 1.5, 1, body?.count || 5);
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);
