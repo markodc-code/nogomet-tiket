@@ -29,11 +29,11 @@ const Engine = (() => {
     L = {}; where = {}; byNorm = {}; fixByPair = {}; resultsByPair = {}; lamCache = {}; probCache = {};
     for (const lg of D.leagues) {
       L[lg.code] = lg;
-      for (const t of lg.teams) { where[t] = lg.code; byNorm[norm(t)] = t; }
+      for (const t of lg.teams) { if (!where[t]) where[t] = lg.code; byNorm[norm(t)] = t; }
     }
     alias = {};
     for (const [k, v] of Object.entries(D.aliases)) alias[norm(k)] = v;
-    for (const f of D.fixtures) fixByPair[f.home + "|" + f.away] = f;
+    for (const f of D.fixtures) { fixByPair[f.home + "|" + f.away] = f; fixByPair[f.league + "|" + f.home + "|" + f.away] = f; }
     for (const [d, h, a, hg, ag] of D.results) {
       const k = h + "|" + a;
       if (!resultsByPair[k]) resultsByPair[k] = [];
@@ -180,11 +180,14 @@ const Engine = (() => {
     const h = findTeam(leg.home), a = findTeam(leg.away);
     if (!h || !a) return {error: `Ne prepoznajem momčad „${!h ? leg.home : leg.away}“.`};
     if (h === a) return {error: "Domaćin i gost su ista momčad."};
-    if (where[h] !== where[a]) return {error: `${h} (${L[where[h]].name}) i ${a} (${L[where[a]].name}) nisu u istoj ligi.`};
-    const lg = L[where[h]], bet = String(leg.bet || "1").trim();
-    const fx = fixByPair[h + "|" + a];
+    // natjecanje uz par (npr. Liga prvaka) ima prednost pred domaćom ligom
+    const LL = leg.league && L[leg.league];
+    const forced = LL && LL.att && h in LL.att && a in LL.att ? leg.league : null;
+    if (!forced && where[h] !== where[a]) return {error: `${h} (${L[where[h]].name}) i ${a} (${L[where[a]].name}) nisu u istoj ligi.`};
+    const lg = L[forced || where[h]], bet = String(leg.bet || "1").trim();
+    const fx = fixByPair[lg.code + "|" + h + "|" + a] || fixByPair[h + "|" + a];
     const mk = fx ? marketProbabilities(fx.odds) : {};
-    const ck = h + "|" + a;
+    const ck = lg.code + "|" + h + "|" + a;
     if (!lamCache[ck]) {
       const [mlh, mla] = expectedGoals(lg, h, a);
       let lh = mlh, la = mla, source = "model";
@@ -626,9 +629,9 @@ const Engine = (() => {
 
   // Šanse za gumbe nogometne ponude (1, X, 2, 3+, 0-2) jednim izračunom.
   function fixtureProbs(f) {
-    const k = f.home + "|" + f.away;
+    const k = f.league + "|" + f.home + "|" + f.away;
     if (!probCache[k]) {
-      const r = evaluateLeg({home: f.home, away: f.away, bet: "1"});
+      const r = evaluateLeg({home: f.home, away: f.away, bet: "1", league: f.league});
       const b = r.basic || {};
       probCache[k] = r.error ? {} : {"1": b["1"], "X": b.X, "2": b["2"], "1X": b["1"] + b.X, "X2": b.X + b["2"], "12": b["1"] + b["2"],
         "GG": b.GG, "NG": 1 - b.GG, "3+": b["O2.5"], "0-2": 1 - b["O2.5"], source: r.source};
@@ -706,7 +709,7 @@ const Engine = (() => {
 
     const picks = [];
     for (const {item, c} of chosen) {
-      const f = item.f, leg = {home: f.home, away: f.away, bet: c.bet, odds: c.odds, sport: item.sport};
+      const f = item.f, leg = {home: f.home, away: f.away, bet: c.bet, odds: c.odds, sport: item.sport, league: f.league};
       const r = item.sport !== "nog" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
       if (r.error) continue;
       picks.push({...r, odds: c.odds, sport: item.sport, est: c.est, ev: r.p * c.odds - 1, k: item.k.getTime(),
@@ -760,7 +763,8 @@ const Engine = (() => {
 
   function initPayload() {
     return {
-      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country,
+      uefa: D.uefa || [],
+      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, uefa: !!l.uefa,
         weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
       basket: {

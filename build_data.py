@@ -10,6 +10,7 @@ import sys
 import basket as K
 import espn_soccer as E
 import sports2 as S2
+import uefa as U
 import model as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -91,6 +92,12 @@ def build(force=False, out=OUT):
         "fixtures": upcoming,
         "results": results,
     }
+    # Liga prvaka, Europska i Konferencijska liga (ESPN) - dio nogometa
+    u_leagues, u_fix, u_res = U.build(today, force)
+    data["leagues"] += u_leagues
+    data["fixtures"] = sorted(data["fixtures"] + u_fix, key=lambda f: (f["iso"], f["time"], f["league"]))
+    data["results"] = sorted(data["results"] + u_res)
+    data["uefa"] = [l["code"] for l in u_leagues]
     try:
         data["basket"] = K.build(today, force, load_accuracy(ACCURACY_BASKET)["leagues"])
         for l in data["basket"]["leagues"]:
