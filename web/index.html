@@ -891,27 +891,33 @@ const legFor = (home, away, sp = "nog") => legs.find(l => l.home === home && l.a
 const leagueOf = code => INIT.leagues.find(l => l.code === code);
 const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter);
 
+// Pomakni samo traku s danima do odabranog dana (scrollIntoView bi pomaknuo cijelu stranicu na vrh).
+function centerDay() {
+  const box = $("#days"), sel = box && box.querySelector(".on");
+  if (sel) box.scrollLeft = sel.offsetLeft - box.clientWidth / 2 + sel.offsetWidth / 2;
+}
 function renderSide() {
   if (!INIT) return;
   document.querySelectorAll("#sports button").forEach(b => b.classList.toggle("on", b.dataset.sport === sport));
   document.querySelectorAll("#sideSeg button").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
   if (sport !== "nog") return renderBasket();
-  const lgs = INIT.leagues;
-  if (side === "tb" && !lgs.some(l => l.code === lgFilter)) lgFilter = lgs[0].code;
-  if (!["all", "top5"].includes(lgFilter) && !lgs.some(l => l.code === lgFilter)) lgFilter = "all";
-  const countries = [...new Set(lgs.map(l => l.country))];
+  // europska natjecanja uvijek prva, pa domaće lige
+  const lgs = [...INIT.leagues.filter(l => l.uefa), ...INIT.leagues.filter(l => !l.uefa)];
   const opt = (v, t) => `<option value="${v}" ${lgFilter === v ? "selected" : ""}>${esc(t)}</option>`;
   const UEFA = [["UCL", "ucl", "⭐", "Liga prvaka", "Liga prvaka"], ["UEL", "uel", "🏆", "Europska liga", "Europska liga"],
     ["UECL", "uecl", "🔶", "Konferencijska liga", "Konf. liga"]]
     .filter(([c]) => lgs.some(l => l.code === c));
-  $("#lgf").innerHTML = (UEFA.length ? `<div class="uefa-tabs">${UEFA.map(([c, cls, ico, name, short]) =>
-      `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "")
-    + `<select id="lgsel" aria-label="Liga">
-    ${side === "fx" ? opt("all", "Sve lige") + opt("top5", "Liga petica") : ""}
-    ${countries.map(c => `<optgroup label="${esc(c)}">${lgs.filter(l => l.country === c).map(l => opt(l.code, l.flag + " · " + l.name)).join("")}</optgroup>`).join("")}
-  </select>`;
+  const uefaTabs = UEFA.length ? `<div class="uefa-tabs">${UEFA.map(([c, cls, ico, name, short]) =>
+      `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "";
+  const select = (list, counts) => {
+    const groups = [...new Set(list.map(l => l.country))];
+    const label = l => (l.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[l.code] || "") + l.name : l.flag + " · " + l.name) + (counts ? ` (${counts[l.code]})` : "");
+    return groups.map(c => `<optgroup label="${esc(c)}">${list.filter(l => l.country === c).map(l => opt(l.code, label(l))).join("")}</optgroup>`).join("");
+  };
 
   if (side === "tb") {
+    if (!lgs.some(l => l.code === lgFilter)) lgFilter = lgs[0].code;
+    $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">${select(lgs)}</select>`;
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
     const lg = leagueOf(lgFilter);
     $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>G</th><th>Bod</th><th>Forma</th></tr>
@@ -919,23 +925,34 @@ function renderSide() {
     return;
   }
 
+  // dani dolaze iz svih liga; izbornik liga pokazuje samo lige koje igraju odabrani dan
   const today = todayIso();
-  const all = INIT.fixtures.filter(f => lgMatch(f) && inOffer(f.iso));
+  const offer = INIT.fixtures.filter(f => inOffer(f.iso));
   const counts = {};
-  for (const f of all) counts[f.iso] = (counts[f.iso] || 0) + 1;
+  for (const f of offer) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort();
   if (!days.length) {
-    $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
-    $("#side").innerHTML = `<div class="empty">Za ovu ligu nema utakmica od danas do ${shortDay(offerEnd())}.<br>Par možeš dodati ručno na tiketu.</div>`;
+    $("#lgf").innerHTML = uefaTabs; $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
+    $("#side").innerHTML = `<div class="empty">Nema utakmica od danas do ${shortDay(offerEnd())}.<br>Par možeš dodati ručno na tiketu.</div>`;
     return;
   }
   if (!selDay || !counts[selDay]) selDay = days.find(d => d >= today) || days[0];
+  const dayFx = offer.filter(f => f.iso === selDay);
+  const perLg = {};
+  for (const f of dayFx) perLg[f.league] = (perLg[f.league] || 0) + 1;
+  const top5Today = (INIT.top5 || []).filter(c => perLg[c]).reduce((x, c) => x + perLg[c], 0);
+  if ((lgFilter === "top5" && !top5Today) || (!["all", "top5"].includes(lgFilter) && !perLg[lgFilter])) lgFilter = "all";
+  $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">
+    ${opt("all", `Sve lige (${dayFx.length})`)}${top5Today ? opt("top5", `Liga petica (${top5Today})`) : ""}
+    ${select(lgs.filter(l => perLg[l.code]), perLg)}
+  </select>`;
+  const all = dayFx.filter(lgMatch);
   $("#days").innerHTML = days.map(d => `<button class="dayb ${d === selDay ? "on" : ""}" data-day="${d}">
       <span class="d1">${relDay(d)}</span><span class="d2">${isoDate(d).getDate()}.${isoDate(d).getMonth() + 1}.</span><span class="d3">${counts[d]} utak.</span></button>`).join("");
-  const sel = $("#days .on"); if (sel) sel.scrollIntoView({block: "nearest", inline: "nearest"});
-  $("#dayhead").innerHTML = `<div class="dayhead"><h3>${fullDay(selDay)}</h3><span class="sub">${counts[selDay]} utakmica</span></div>`;
+  centerDay();
+  $("#dayhead").innerHTML = `<div class="dayhead"><h3>${fullDay(selDay)}</h3><span class="sub">${all.length} utakmica</span></div>`;
 
-  const fx = all.filter(f => f.iso === selDay).sort((a, b) => Engine.hrTime(a).localeCompare(Engine.hrTime(b)));
+  const fx = all.sort((a, b) => Engine.hrTime(a).localeCompare(Engine.hrTime(b)));
   const byLg = {};
   for (const f of fx) (byLg[f.league] = byLg[f.league] || []).push(f);
   const order = [...lgs.filter(l => l.uefa), ...lgs.filter(l => !l.uefa)].map(l => l.code).filter(c => byLg[c]);
@@ -1039,7 +1056,7 @@ function renderBasket() {
   if (!bDay || !counts[bDay]) bDay = days.find(d => d >= today) || days[0];
   $("#days").innerHTML = days.map(d => `<button class="dayb ${d === bDay ? "on" : ""}" data-day="${d}">
       <span class="d1">${relDay(d)}</span><span class="d2">${isoDate(d).getDate()}.${isoDate(d).getMonth() + 1}.</span><span class="d3">${counts[d]} ${sport === "ten" ? "meč." : "utak."}</span></button>`).join("");
-  const sel = $("#days .on"); if (sel) sel.scrollIntoView({block: "nearest", inline: "nearest"});
+  centerDay();
   $("#dayhead").innerHTML = `<div class="dayhead"><h3>${fullDay(bDay)}</h3><span class="sub">${counts[bDay]} ${unit}</span></div>`;
   const fx = all.filter(f => f.iso === bDay).sort((a, b) => (a.tournament || "").localeCompare(b.tournament || "") || a.time.localeCompare(b.time));
   let lastGroup = null;
@@ -1068,7 +1085,14 @@ $("#sports").onclick = e => {
 };
 $("#lgf").addEventListener("click", e => {
   const u = e.target.closest("[data-uefa]");
-  if (u) { lgFilter = lgFilter === u.dataset.uefa ? "all" : u.dataset.uefa; store.set("nt-lg", lgFilter); selDay = null; return renderSide(); }
+  if (u) {
+    lgFilter = lgFilter === u.dataset.uefa ? "all" : u.dataset.uefa; store.set("nt-lg", lgFilter);
+    if (lgFilter !== "all" && side === "fx" && !INIT.fixtures.some(f => f.league === lgFilter && f.iso === selDay)) {
+      const first = INIT.fixtures.filter(f => f.league === lgFilter && inOffer(f.iso)).map(f => f.iso).sort()[0];
+      if (first) selDay = first;
+    }
+    return renderSide();
+  }
   const b = e.target.closest("[data-bl]"); if (!b) return;
   otherLeague[sport] = b.dataset.bl; store.set("nt-leagues", otherLeague); bDay = null; renderSide();
 });
