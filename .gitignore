@@ -1,0 +1,4 @@
+podaci/
+__pycache__/
+*.tmp
+tiketi.json

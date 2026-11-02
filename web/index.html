@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nogometni tiket</title>
+<meta name="description" content="Šansa da tvoj nogometni tiket prođe, iz statistike lige petice.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tiket">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101512" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  --bg: #f4f5f1; --card: #ffffff; --ink: #16201a; --muted: #5d6b62; --line: #dfe3dc;
+  --accent: #1f7a4a; --accent-ink: #ffffff; --accent-soft: #e3f1e8;
+  --good: #1f7a4a; --bad: #b4382f; --warn: #9a6a00; --bar: #e8ebe5; --input: #fbfcfa;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101512; --card: #18201b; --ink: #e8eee9; --muted: #95a39a; --line: #2a352e;
+    --accent: #3fb873; --accent-ink: #08130c; --accent-soft: #1d3326;
+    --good: #4cc47f; --bad: #ef6f62; --warn: #e0b13d; --bar: #26302a; --input: #141a16;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101512; --card: #18201b; --ink: #e8eee9; --muted: #95a39a; --line: #2a352e;
+  --accent: #3fb873; --accent-ink: #08130c; --accent-soft: #1d3326;
+  --good: #4cc47f; --bad: #ef6f62; --warn: #e0b13d; --bar: #26302a; --input: #141a16;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+.wrap { max-width: 1240px; margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+@media (max-width: 760px) { input, select { font-size: 16px !important; } } /* iPhone inače zumira pri tipkanju */
+.backup { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+h1 span { color: var(--accent); }
+.sub { color: var(--muted); font-size: 13px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* tiket */
+.leg { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.leg-inputs { display: grid; grid-template-columns: 1fr auto 1fr 96px 32px; grid-template-areas: "h d a a2 x" "b b b o ."; gap: 8px; align-items: center; }
+.leg-inputs [data-f="home"] { grid-area: h; } .leg-inputs .dash { grid-area: d; }
+.leg-inputs [data-f="away"] { grid-area: a / a / a / a2; } .leg-inputs .betbox { grid-area: b; }
+.leg-inputs .odds { grid-area: o; } .leg-inputs .x { grid-area: x; }
+@media (min-width: 1200px) {
+  .leg-inputs { grid-template-columns: 1fr auto 1fr 210px 90px 32px; grid-template-areas: "h d a b o x"; }
+  .leg-inputs [data-f="away"] { grid-area: a; }
+}
+.leg-inputs .dash { color: var(--muted); }
+.leg input, .leg select { width: 100%; background: var(--input); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; min-width: 0; }
+.leg input:focus, .leg select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.betbox { display: flex; gap: 6px; min-width: 0; }
+.betbox .score { width: 62px; flex: none; }
+.x { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 20px; line-height: 1; padding: 4px; }
+.x:hover { color: var(--bad); }
+@media (max-width: 520px) {
+  .leg-inputs { grid-template-columns: 1fr auto 1fr 32px; grid-template-areas: "h d a x" "b b b b" "o o o o"; }
+  .leg-inputs [data-f="away"] { grid-area: a; }
+}
+.res { margin-top: 10px; display: none; }
+.res.show { display: block; }
+.res-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pct { font-size: 22px; font-weight: 700; min-width: 74px; font-variant-numeric: tabular-nums; }
+.bar { flex: 1; min-width: 120px; height: 8px; background: var(--bar); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 12.5px; padding: 3px 8px; border-radius: 99px; background: var(--bar); color: var(--muted); white-space: nowrap; }
+.chip b { color: var(--ink); font-weight: 600; }
+.chip.good { background: var(--accent-soft); color: var(--good); }
+.chip.bad { color: var(--bad); }
+.err { color: var(--bad); font-size: 13.5px; margin-top: 8px; }
+.meta { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+details { margin-top: 8px; font-size: 13.5px; }
+summary { cursor: pointer; color: var(--muted); }
+.det { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+.det div { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.det h4 { margin: 0 0 4px; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.form { font-family: ui-monospace, Consolas, monospace; letter-spacing: .1em; }
+.form .W { color: var(--good); } .form .L { color: var(--bad); } .form .D { color: var(--muted); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* sažetak */
+.summary { margin-top: 16px; border-radius: 12px; padding: 18px; background: var(--accent-soft); border: 1px solid transparent; }
+.summary .big { font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.summary .lbl { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 14px; }
+.sumgrid .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; margin-top: 10px; }
+.foot { font-size: 12px; color: var(--muted); margin-top: 14px; }
+
+/* nadolazeće */
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tab { flex: 1; text-align: center; padding: 6px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: transparent; }
+.tab.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.lgf { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.lgf button { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.lgf button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.fxlist { max-height: 72vh; overflow: auto; margin: 0 -6px; padding: 0 6px; }
+.day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 4px; }
+.fx { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.fx-teams { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.fx-teams small { color: var(--muted); white-space: nowrap; }
+.fx-odds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
+.fx-odds button { border: 1px solid var(--line); background: var(--input); border-radius: 6px; padding: 3px 4px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
+.fx-odds button:hover { border-color: var(--accent); }
+.fx-odds button span { color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 3px; text-align: right; border-bottom: 1px solid var(--line); }
+th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.nav { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+.nav button { border: none; background: none; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
+.nav button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.savebar input { width: 80px; background: var(--input); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tile .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.tile .v { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .s { font-size: 13px; color: var(--muted); }
+.hgrid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .hgrid { grid-template-columns: 1fr; } }
+.calib { font-size: 13.5px; }
+.calib .row { margin-bottom: 10px; }
+.calib .bars { position: relative; height: 10px; background: var(--bar); border-radius: 99px; margin-top: 4px; }
+.calib .bars i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); border-radius: 99px; }
+.calib .bars b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.tk { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.tk-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.badge { font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+.badge.won { background: var(--accent-soft); color: var(--good); }
+.badge.lost { background: var(--bar); color: var(--bad); }
+.badge.pending { background: var(--bar); color: var(--muted); }
+.tk-legs { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13.5px; }
+.tk-legs li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); }
+.tk-legs .st { font-weight: 700; text-align: center; }
+.tk-legs .won .st { color: var(--good); } .tk-legs .lost .st { color: var(--bad); } .tk-legs .pending .st { color: var(--muted); }
+.tk-legs small { color: var(--muted); }
+.tk-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 8px; align-items: center; }
+.tk-foot b { color: var(--ink); }
+.tk-foot .x { font-size: 13px; margin-left: auto; }
+.empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align: center; }
+.loading { padding: 60px 0; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Nogometni <span>tiket</span></h1>
+      <div class="sub" id="sub">Učitavam…</div>
+    </div>
+    <div class="actions">
+      <nav class="nav">
+        <button data-view="ticket" class="on">Tiket</button>
+        <button data-view="history">Moji tiketi <span id="navcount"></span></button>
+      </nav>
+      <button class="btn" id="refresh" title="Ponovno skini rezultate i kvote">Osvježi podatke</button>
+    </div>
+  </header>
+
+  <section id="history" hidden></section>
+
+  <div class="grid" id="ticketview">
+    <section class="card">
+      <h2>Tvoj tiket</h2>
+      <div id="legs"></div>
+      <div class="actions">
+        <button class="btn primary" id="add">+ Dodaj par</button>
+        <button class="btn ghost" id="clear">Očisti tiket</button>
+      </div>
+      <div class="summary" id="summary" hidden></div>
+      <div class="savebar" id="savebar" hidden>
+        <label>Ulog <input id="stake" inputmode="decimal" placeholder="npr. 2" value=""> €</label>
+        <span id="payout" class="sub"></span>
+        <button class="btn primary" id="saveTicket">Spremi i prati tiket</button>
+        <span id="savemsg" class="sub"></span>
+      </div>
+      <p class="foot">Šansa se računa iz rezultata zadnje tri sezone (novije utakmice vrijede više). Kad za utakmicu postoje kvote kladionica, procjena se kombinira s njima. Ovo je procjena, ne garancija. Ozljede, rotacije i motivaciju model ne vidi.</p>
+    </section>
+
+    <aside class="card">
+      <div class="tabs">
+        <button class="tab on" data-tab="fx">Utakmice</button>
+        <button class="tab" data-tab="tb">Tablice</button>
+      </div>
+      <div class="lgf" id="lgf"></div>
+      <div id="side" class="fxlist"><div class="loading">Učitavam…</div></div>
+    </aside>
+  </div>
+</div>
+
+<datalist id="teams"></datalist>
+
+<script src="engine.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = p => p == null ? "–" : (p * 100).toLocaleString("hr-HR", {maximumFractionDigits: p < 0.1 ? 1 : 0, minimumFractionDigits: p < 0.1 ? 1 : 0}) + " %";
+const num = (x, d = 2) => x == null ? "–" : x.toLocaleString("hr-HR", {minimumFractionDigits: d, maximumFractionDigits: d});
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+let INIT = null, side = store.get("nt-side", "fx"), lgFilter = store.get("nt-lg", "all");
+let legs = store.get("nt-legs", null) || [{home: "", away: "", bet: "1", odds: ""}];
+let uid = 0; legs.forEach(l => l.id = ++uid);
+let timer = null, reqNo = 0;
+
+const api = (path, body) => Engine.api(path, body);
+
+function betOptions(sel) {
+  const isScore = /^R/i.test(sel);
+  return INIT.bets.map(b => `<option value="${b.code}" ${b.code === sel ? "selected" : ""}>${esc(b.label)}</option>`).join("")
+    + `<option value="R" ${isScore ? "selected" : ""}>Točan rezultat…</option>`;
+}
+
+function renderLegs() {
+  $("#legs").innerHTML = legs.map(l => {
+    const isScore = /^R/i.test(l.bet);
+    return `<div class="leg" data-id="${l.id}">
+      <div class="leg-inputs">
+        <input list="teams" placeholder="Domaćin" value="${esc(l.home)}" data-f="home" autocomplete="off">
+        <span class="dash">–</span>
+        <input list="teams" placeholder="Gost" value="${esc(l.away)}" data-f="away" autocomplete="off">
+        <div class="betbox">
+          <select data-f="bet">${betOptions(l.bet)}</select>
+          ${isScore ? `<input class="score" placeholder="2:1" value="${esc(l.bet.slice(1))}" data-f="score">` : ""}
+        </div>
+        <input class="odds" placeholder="Kvota" inputmode="decimal" value="${esc(l.odds)}" data-f="odds">
+        <button class="x" title="Makni par" data-del>×</button>
+      </div>
+      <div class="res"></div>
+    </div>`;
+  }).join("") || `<div class="empty">Tiket je prazan. Dodaj par ili klikni kvotu desno.</div>`;
+}
+
+$("#legs").addEventListener("input", e => {
+  const el = e.target, row = el.closest(".leg"); if (!row) return;
+  const leg = legs.find(l => l.id == row.dataset.id), f = el.dataset.f;
+  if (f === "score") leg.bet = "R" + el.value.replace(/[-.]/g, ":").replace(/\s/g, "");
+  else if (f === "bet") {
+    leg.bet = el.value === "R" ? "R1:0" : el.value;
+    if ((el.value === "R") !== !!row.querySelector(".score")) { renderLegs(); }
+  } else leg[f] = el.value;
+  schedule();
+});
+$("#legs").addEventListener("click", e => {
+  if (!e.target.closest("[data-del]")) return;
+  const id = e.target.closest(".leg").dataset.id;
+  legs = legs.filter(l => l.id != id); renderLegs(); schedule(0);
+});
+$("#add").onclick = () => { legs.push({id: ++uid, home: "", away: "", bet: "1", odds: ""}); renderLegs();
+  document.querySelector(`.leg[data-id="${uid}"] input`).focus(); save(); };
+$("#clear").onclick = () => { legs = []; renderLegs(); schedule(0); };
+
+function save() { store.set("nt-legs", legs.map(({home, away, bet, odds}) => ({home, away, bet, odds}))); }
+
+function schedule(ms = 300) { save(); clearTimeout(timer); timer = setTimeout(compute, ms); }
+
+async function compute() {
+  const filled = legs.filter(l => l.home.trim() && l.away.trim());
+  const my = ++reqNo;
+  if (!filled.length) { $("#summary").hidden = true; $("#savebar").hidden = true; document.querySelectorAll(".res").forEach(r => r.className = "res"); return; }
+  const data = await api("/api/ticket", {legs: filled.map(({home, away, bet, odds}) => ({home, away, bet, odds}))});
+  if (my !== reqNo) return;
+  document.querySelectorAll(".leg").forEach(row => {
+    const leg = legs.find(l => l.id == row.dataset.id), i = filled.indexOf(leg), box = row.querySelector(".res");
+    if (i < 0) { box.className = "res"; return; }
+    const r = data.legs[i];
+    box.className = "res show"; box.innerHTML = legHTML(r);
+    // upisani nadimak zamijeni punim imenom (ako polje nije u fokusu)
+    if (!r.error) for (const f of ["home", "away"]) {
+      const inp = row.querySelector(`[data-f="${f}"]`);
+      if (inp !== document.activeElement && leg[f] !== r[f]) { leg[f] = r[f]; inp.value = r[f]; save(); }
+    }
+  });
+  renderSummary(data.total);
+}
+
+function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
+
+function legHTML(r) {
+  if (r.error) return `<div class="err">${esc(r.error)}</div>`;
+  const chips = [`<span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>`];
+  if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
+  if (r.source !== "model") chips.push(`<span class="chip">Samo model <b>${pct(r.pModel)}</b></span>`);
+  if (r.value != null) chips.push(r.value >= 0
+    ? `<span class="chip good">Kvota je dobra: +${num(r.value * 100, 0)} % vrijednosti</span>`
+    : `<span class="chip bad">Kvota je preniska: ${num(r.value * 100, 0)} %</span>`);
+  const when = r.date ? new Date(r.date).toLocaleDateString("hr-HR", {weekday: "short", day: "numeric", month: "numeric"}) + (r.time ? " " + r.time : "") : "";
+  const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.pts} bod. · gol-razlika ${row.gf}:${row.ga}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
+  return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
+    <div class="meta">${esc(r.home)} – ${esc(r.away)} · ${esc(r.leagueName)}${when ? " · " + when : ""} · oklada: <b>${esc(r.betLabel)}</b></div>
+    <div class="chips">${chips.join("")}</div>
+    <details><summary>Detalji utakmice</summary>
+      <div class="det">
+        <div><h4>Očekivani golovi</h4>${esc(r.home)} <b>${num(r.xg[0])}</b><br>${esc(r.away)} <b>${num(r.xg[1])}</b></div>
+        <div><h4>Osnovne šanse</h4>1 <b>${pct(r.basic["1"])}</b> · X <b>${pct(r.basic.X)}</b> · 2 <b>${pct(r.basic["2"])}</b><br>GG <b>${pct(r.basic.GG)}</b> · 3+ <b>${pct(r.basic["O2.5"])}</b></div>
+        <div><h4>Najvjerojatniji rezultati</h4>${r.scores.map(([p, s]) => `${s} <b>${pct(p)}</b>`).join(" · ")}</div>
+        <div><h4>Domaćin</h4>${team(r.homeRow, r.home)}</div>
+        <div><h4>Gost</h4>${team(r.awayRow, r.away)}</div>
+      </div>
+    </details>`;
+}
+
+let lastTotal = null;
+function updatePayout() {
+  const s = parseFloat(($("#stake").value || "").replace(",", "."));
+  $("#payout").textContent = lastTotal && lastTotal.odds && s > 0 ? `Mogući dobitak: ${num(s * lastTotal.odds)} €` : "";
+}
+$("#stake").addEventListener("input", () => { store.set("nt-stake", $("#stake").value); updatePayout(); });
+$("#stake").value = store.get("nt-stake", "");
+$("#saveTicket").onclick = async () => {
+  const filled = legs.filter(l => l.home.trim() && l.away.trim());
+  const r = await api("/api/tickets/save", {stake: $("#stake").value, legs: filled.map(({home, away, bet, odds}) => ({home, away, bet, odds}))});
+  $("#savemsg").textContent = r.error ? r.error : "Spremljeno. Rezultat će se sam provjeriti kad utakmice završe.";
+  if (!r.error) loadHistory(false);
+};
+
+function renderSummary(t) {
+  const el = $("#summary");
+  lastTotal = t; $("#savebar").hidden = !t.legs; $("#savemsg").textContent = ""; updatePayout();
+  if (!t.legs) { el.hidden = true; return; }
+  el.hidden = false;
+  const oneIn = t.p > 0 ? Math.round(1 / t.p) : null;
+  let valueBlock = "";
+  if (t.odds) {
+    const good = t.value >= 0;
+    valueBlock = `<div><div class="lbl">Tvoja ukupna kvota</div><div class="v">${num(t.odds)}</div></div>
+      <div><div class="lbl">Očekivani povrat</div><div class="v" style="color:var(--${good ? "good" : "bad"})">${good ? "+" : ""}${num(t.value * 100, 0)} %</div></div>`;
+  }
+  const notes = [];
+  if (oneIn) notes.push(oneIn <= 1 ? "Ovakav tiket prolazi gotovo uvijek." : `Ovakav tiket u prosjeku prolazi <b>1 put od ${oneIn}</b>.`);
+  if (t.odds) notes.push(t.value >= 0
+    ? "Ukupna kvota je veća od fer kvote, pa je tiket dugoročno u plusu (ako je procjena točna)."
+    : `Na svakih 10 € uloženih u ovakve tikete dugoročno se vraća oko ${num(10 * (1 + t.value), 2)} €.`);
+  if (t.pMarket != null) notes.push(`Samo prema kvotama kladionica šansa bi bila ${pct(t.pMarket)}.`);
+  if (t.duplicate) notes.push(`<span style="color:var(--warn)">Isti par je na tiketu više puta, pa ukupna šansa nije točna (oklade na istu utakmicu nisu neovisne).</span>`);
+  el.innerHTML = `<div class="lbl">Šansa da tiket prođe (${t.legs} ${t.legs === 1 ? "par" : t.legs < 5 ? "para" : "parova"})</div>
+    <div class="big">${pct(t.p)}</div>
+    <div class="sumgrid">
+      <div><div class="lbl">Fer kvota tiketa</div><div class="v">${num(t.fairOdds)}</div></div>
+      ${valueBlock}
+    </div>
+    <div class="note">${notes.join(" ")}</div>`;
+}
+
+/* desni stupac */
+function renderSide() {
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
+  const lgs = INIT.leagues;
+  if (side === "tb" && lgFilter === "all") lgFilter = lgs[0].code;
+  $("#lgf").innerHTML = (side === "fx" ? [`<button data-lg="all" class="${lgFilter === "all" ? "on" : ""}">Sve</button>`] : [])
+    .concat(lgs.map(l => `<button data-lg="${l.code}" class="${lgFilter === l.code ? "on" : ""}">${esc(l.name)}</button>`)).join("");
+  if (side === "fx") {
+    const fx = INIT.fixtures.filter(f => lgFilter === "all" || f.league === lgFilter);
+    if (!fx.length) { $("#side").innerHTML = `<div class="empty">Trenutno nema objavljenih kvota za ovu ligu. Upiši par ručno.</div>`; return; }
+    let html = "", day = "";
+    fx.forEach((f, i) => {
+      if (f.iso !== day) { day = f.iso; html += `<div class="day">${new Date(f.iso).toLocaleDateString("hr-HR", {weekday: "long", day: "numeric", month: "long"})}</div>`; }
+      const lg = lgs.find(l => l.code === f.league);
+      const ob = k => `<button data-fx="${INIT.fixtures.indexOf(f)}" data-b="${k}" title="Dodaj na tiket"><span>${k}</span><b>${f.odds[k] ? num(f.odds[k]) : "–"}</b></button>`;
+      html += `<div class="fx"><div class="fx-teams"><span>${esc(f.home)} – ${esc(f.away)}</span><small>${esc(f.time)} · ${lg.flag}</small></div>
+        <div class="fx-odds">${ob("1")}${ob("X")}${ob("2")}</div></div>`;
+    });
+    $("#side").innerHTML = html;
+  } else {
+    const lg = lgs.find(l => l.code === lgFilter);
+    $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>G</th><th>Bod</th><th>Forma</th></tr>
+      ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.gf}:${r.ga}</td><td><b>${r.pts}</b></td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
+  }
+}
+document.querySelector(".tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; side = b.dataset.tab; store.set("nt-side", side); renderSide(); };
+$("#lgf").onclick = e => { const b = e.target.closest("button"); if (!b) return; lgFilter = b.dataset.lg; store.set("nt-lg", lgFilter); renderSide(); };
+$("#side").onclick = e => {
+  const b = e.target.closest("[data-fx]"); if (!b) return;
+  const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b, odds = f.odds[bet] ? String(f.odds[bet]).replace(".", ",") : "";
+  const empty = legs.find(l => !l.home.trim() && !l.away.trim());
+  if (empty) Object.assign(empty, {home: f.home, away: f.away, bet, odds});
+  else legs.push({id: ++uid, home: f.home, away: f.away, bet, odds});
+  renderLegs(); schedule(0);
+};
+
+/* moji tiketi */
+let HIST = null, histFilter = "all", view = "ticket";
+const ST = {won: ["✓", "Prošao"], lost: ["✗", "Pao"], pending: ["•", "Čeka"]};
+const fmtDate = iso => new Date(iso).toLocaleDateString("hr-HR", {day: "numeric", month: "numeric", year: "numeric"});
+
+function setView(v) {
+  view = v;
+  document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  $("#ticketview").hidden = v !== "ticket"; $("#history").hidden = v !== "history";
+  if (v === "history") loadHistory(true);
+}
+document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
+
+async function loadHistory(render) {
+  HIST = await api("/api/tickets");
+  const pend = HIST.stats.pending;
+  $("#navcount").textContent = HIST.tickets.length ? `(${HIST.tickets.length})` : "";
+  if (render || view === "history") renderHistory();
+}
+
+function renderHistory() {
+  const s = HIST.stats, el = $("#history");
+  if (!HIST.tickets.length) {
+    el.innerHTML = `<div class="card empty">Još nemaš spremljenih tiketa. Složi tiket, upiši ulog i klikni „Spremi i prati tiket“.</div>${backupHTML()}`;
+    return;
+  }
+  const settled = s.won + s.lost;
+  const profitTile = s.staked ? `<div class="card tile"><div class="lbl">Zarada</div>
+      <div class="v" style="color:var(--${s.profit >= 0 ? "good" : "bad"})">${s.profit >= 0 ? "+" : ""}${num(s.profit)} €</div>
+      <div class="s">Uloženo ${num(s.staked)} €, vraćeno ${num(s.returned)} €${s.roi != null ? ` (${s.roi >= 0 ? "+" : ""}${num(s.roi * 100, 0)} %)` : ""}</div></div>` : "";
+  const tiles = `<div class="tiles">
+    <div class="card tile"><div class="lbl">Tiketi</div><div class="v">${s.won} / ${settled}</div>
+      <div class="s">prošlo od završenih${s.pending ? ` · ${s.pending} čeka` : ""}</div></div>
+    ${profitTile}
+    <div class="card tile"><div class="lbl">Očekivano po modelu</div><div class="v">${num(s.expectedWins, 1)}</div>
+      <div class="s">tiketa je trebalo proći od ${settled}</div></div>
+    <div class="card tile"><div class="lbl">Pojedinačni parovi</div><div class="v">${s.legsWon} / ${s.legs}</div>
+      <div class="s">prošlo · model je očekivao ${num(s.legsExpected, 1)}</div></div>
+  </div>`;
+
+  const calib = s.buckets.length ? s.buckets.map(b => {
+    const real = b.won / b.n;
+    return `<div class="row">Model je davao <b>${num(b.lo * 100, 0)}–${num(b.hi * 100, 0)} %</b>:
+      prošlo ${b.won} od ${b.n} (${pct(real)}, očekivano ${pct(b.expected)})
+      <div class="bars"><i style="width:${real * 100}%"></i><b style="left:${b.expected * 100}%"></b></div></div>`;
+  }).join("") + `<p class="sub">Zelena traka je koliko je stvarno prošlo, a crta je koliko je model očekivao. Što su bliže, to je model točniji. Pouzdan zaključak traži bar 50–100 parova.</p>`
+    : `<p class="sub">Kad se odigraju prvi parovi, ovdje ćeš vidjeti koliko je model bio točan.</p>`;
+
+  const list = HIST.tickets.filter(t => histFilter === "all" || t.status === histFilter);
+  const cards = list.map(t => `<div class="tk">
+      <div class="tk-head"><div><b>${fmtDate(t.created)}</b> <span class="sub">· ${t.legs.length} ${t.legs.length === 1 ? "par" : t.legs.length < 5 ? "para" : "parova"}</span></div>
+        <span class="badge ${t.status}">${ST[t.status][1]}</span></div>
+      <ul class="tk-legs">${t.legs.map(l => `<li class="${l.status}"><span class="st">${ST[l.status][0]}</span>
+        <span>${esc(l.home)} – ${esc(l.away)} <small>· ${esc(l.betLabel)}${l.odds ? " @ " + num(l.odds) : ""}</small></span>
+        <span>${l.score ? `<b>${l.score}</b>` : `<small>${l.date ? fmtDate(l.date) : "čeka"}</small>`} <small>${pct(l.p)}</small></span></li>`).join("")}</ul>
+      <div class="tk-foot"><span>Šansa <b>${pct(t.p)}</b></span>
+        ${t.odds ? `<span>Kvota <b>${num(t.odds)}</b></span>` : ""}
+        ${t.stake ? `<span>Ulog <b>${num(t.stake)} €</b></span>` : ""}
+        ${t.stake && t.odds && t.status !== "lost" ? `<span>${t.status === "won" ? "Dobitak" : "Mogući dobitak"} <b>${num(t.stake * t.odds)} €</b></span>` : ""}
+        <button class="x" data-tdel="${t.id}" title="Obriši tiket">Obriši</button></div>
+    </div>`).join("") || `<div class="empty">Nema tiketa u ovoj skupini.</div>`;
+
+  el.innerHTML = tiles + `<div class="hgrid">
+    <div class="card"><div class="lgf" id="hf">${[["all", "Svi"], ["pending", "Čekaju"], ["won", "Prošli"], ["lost", "Pali"]]
+      .map(([k, v]) => `<button data-hf="${k}" class="${histFilter === k ? "on" : ""}">${v}</button>`).join("")}</div>${cards}
+      <p class="foot">Rezultati se provjeravaju iz istih podataka kao i model (zadnji rezultat: ${HIST.lastResult ? fmtDate(HIST.lastResult) : "?"}). Obično stignu dan ili dva nakon utakmice.</p></div>
+    <div><div class="card calib"><h2>Koliko je model točan</h2>${calib}</div>${backupHTML()}</div></div>`;
+}
+function backupHTML() {
+  return `<div class="card" style="margin-top:18px"><h2>Sigurnosna kopija</h2>
+    <p class="sub" style="margin:0">Tiketi su spremljeni samo na ovom uređaju. Spremi kopiju da ih ne izgubiš ili prebaciš na drugi uređaj.</p>
+    <div class="backup"><button class="btn" id="exportT">Spremi kopiju</button>
+    <label class="btn">Učitaj kopiju<input type="file" id="importT" accept=".json,application/json" hidden></label></div></div>`;
+}
+document.addEventListener("click", e => {
+  if (e.target.id !== "exportT") return;
+  const blob = new Blob([Engine.exportTickets()], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `tiketi-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+document.addEventListener("change", async e => {
+  if (e.target.id !== "importT" || !e.target.files[0]) return;
+  try { const n = Engine.importTickets(await e.target.files[0].text()); alert(`Učitano novih tiketa: ${n}`); loadHistory(true); }
+  catch (err) { alert("Ne mogu učitati: " + err.message); }
+});
+$("#history").onclick = async e => {
+  const f = e.target.closest("[data-hf]"); if (f) { histFilter = f.dataset.hf; renderHistory(); return; }
+  const d = e.target.closest("[data-tdel]");
+  if (d && confirm("Obrisati ovaj tiket iz praćenja?")) { await api("/api/tickets/delete", {id: d.dataset.tdel}); loadHistory(true); }
+};
+
+function applyInit(d) {
+  INIT = d;
+  $("#teams").innerHTML = d.leagues.flatMap(l => l.teams.map(t => `<option value="${esc(t)}">${esc(l.name)}</option>`)).join("");
+  const last = d.lastResult ? new Date(d.lastResult).toLocaleDateString("hr-HR") : "?";
+  const upd = d.builtAt ? new Date(d.builtAt).toLocaleString("hr-HR", {day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit"}) : "?";
+  $("#sub").textContent = `Liga petica · rezultati do ${last} · ${d.fixtures.length} nadolazećih s kvotama · ažurirano ${upd}`;
+  renderSide();
+}
+
+$("#refresh").onclick = async () => {
+  const b = $("#refresh"); b.disabled = true; b.textContent = "Osvježavam…";
+  try { applyInit(await api("/api/refresh", {})); compute(); loadHistory(false); } finally { b.disabled = false; b.textContent = "Osvježi podatke"; }
+};
+
+(async () => {
+  try { applyInit(await api("/api/init")); }
+  catch (e) { $("#sub").textContent = "Nema podataka: " + e.message + ". Provjeri internet i osvježi."; return; }
+  renderLegs(); compute(); loadHistory(false);
+})();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
