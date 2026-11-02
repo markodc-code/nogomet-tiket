@@ -154,6 +154,10 @@ h1 span { color: var(--tint-text); }
 .fx-time { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); width: 44px; flex: none; }
 .fx-teams { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3; }
 .fx-teams div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fx-teams .tn { display: flex; align-items: center; gap: 8px; }
+.fx-teams .tn > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.form.mini { flex: none; gap: 2px; }
+.form.mini span { width: 13px; height: 13px; border-radius: 3px; font-size: 8.5px; }
 .fx-odds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 0 56px; }
 .ob { border: 0; border-radius: 10px; background: var(--fill2); min-height: 46px; padding: 4px 2px; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 0; transition: background .15s, transform .1s; }
@@ -328,8 +332,8 @@ body[data-sport] { background-attachment: fixed; }
 body[data-sport] .card, body[data-sport] .hero { background: color-mix(in srgb, var(--card) 94%, transparent); }
 body[data-sport] .sports button.on { background: var(--tint); color: var(--tint-ink); }
 /* zaglavlje na mutnoj podlozi, da je tekst čitljiv na svakoj pozadini */
-body[data-sport] header { background: color-mix(in srgb, var(--card) 82%, transparent); -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px); border-radius: 18px; padding: 12px 14px; box-shadow: var(--shadow); }
+body[data-sport] header { background: color-mix(in srgb, var(--card) 88%, transparent); border-radius: 22px; padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, white 55%, transparent); box-shadow: 0 10px 30px rgba(15,23,42,.10); }
 body[data-sport="nog"] {
   --tint: #16a34a; --tint-text: #15803d; --tint-ink: #fff; --tint-soft: rgba(22,163,74,.14); --input: #f1f8f0;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 600' fill='none'%3E%3Crect x='20' y='20' width='960' height='560' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Cline x1='500' y1='20' x2='500' y2='580' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Ccircle cx='500' cy='300' r='80' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Ccircle cx='500' cy='300' r='5' fill='white' fill-opacity='.75'/%3E%3Crect x='20' y='150' width='150' height='300' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Crect x='830' y='150' width='150' height='300' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Crect x='20' y='230' width='55' height='140' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Crect x='925' y='230' width='55' height='140' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Cpath d='M170 245 A80 80 0 0 1 170 355' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3Cpath d='M830 245 A80 80 0 0 0 830 355' stroke='white' stroke-opacity='.75' stroke-width='4'/%3E%3C/svg%3E") center / min(1200px, 160vw) auto no-repeat fixed,
@@ -366,6 +370,50 @@ body[data-sport="hok"] {
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 500' fill='none'%3E%3Crect x='20' y='20' width='960' height='460' rx='150' stroke='%2364748b' stroke-opacity='.45' stroke-width='5'/%3E%3Cline x1='500' y1='20' x2='500' y2='480' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Cline x1='350' y1='20' x2='350' y2='480' stroke='%232563eb' stroke-opacity='.45' stroke-width='8'/%3E%3Cline x1='650' y1='20' x2='650' y2='480' stroke='%232563eb' stroke-opacity='.45' stroke-width='8'/%3E%3Ccircle cx='500' cy='250' r='60' stroke='%232563eb' stroke-opacity='.45' stroke-width='4'/%3E%3Ccircle cx='190' cy='140' r='50' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Ccircle cx='190' cy='360' r='50' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Ccircle cx='810' cy='140' r='50' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Ccircle cx='810' cy='360' r='50' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Cline x1='90' y1='20' x2='90' y2='480' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3Cline x1='910' y1='20' x2='910' y2='480' stroke='%23dc2626' stroke-opacity='.45' stroke-width='6'/%3E%3C/svg%3E") center / min(1200px, 160vw) auto no-repeat fixed, linear-gradient(160deg, #0d1c26 0%, #102633 60%, #0b1820 100%); }
 }
 @media (max-width: 760px) { body[data-sport] { background-attachment: scroll; } }
+
+
+/* ---------- moderniji izgled: staklene kartice, prijelazi boje, sjaj ---------- */
+body[data-sport] .card, body[data-sport] .hero {
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid color-mix(in srgb, white 50%, transparent); border-radius: 22px;
+  box-shadow: 0 12px 34px rgba(15,23,42,.12), 0 1px 0 rgba(255,255,255,.6) inset; }
+body[data-sport] h1 span { background: linear-gradient(90deg, var(--tint-text), color-mix(in srgb, var(--tint) 70%, #f5b301));
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+body[data-sport] .sports button { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid color-mix(in srgb, white 60%, transparent);
+  box-shadow: 0 4px 14px rgba(15,23,42,.06); transition: transform .15s, box-shadow .2s, background .2s; }
+body[data-sport] .sports button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15,23,42,.10); }
+body[data-sport] .sports button.on { background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 65%, #000));
+  color: var(--tint-ink); border-color: transparent; box-shadow: 0 8px 22px color-mix(in srgb, var(--tint) 45%, transparent); }
+body[data-sport] .ob { background: color-mix(in srgb, var(--card) 72%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+  border-radius: 12px; transition: transform .12s, box-shadow .2s, background .2s; }
+body[data-sport] .ob:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15,23,42,.10); }
+body[data-sport] .ob.on { background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 70%, #000)); border-color: transparent;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--tint) 45%, transparent); }
+body[data-sport] .dayb { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent); }
+body[data-sport] .dayb.on { background: linear-gradient(160deg, var(--tint), color-mix(in srgb, var(--tint) 65%, #000)); border-color: transparent;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--tint) 40%, transparent); }
+body[data-sport] .seg { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+body[data-sport] .leg, body[data-sport] .tk { background: color-mix(in srgb, var(--card) 65%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 16px; }
+body[data-sport] .summary { background: linear-gradient(135deg, var(--tint-soft), color-mix(in srgb, var(--tint) 6%, transparent)); border: 1px solid color-mix(in srgb, var(--tint) 25%, transparent); }
+body[data-sport] .btn.primary { background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 70%, #000));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--tint) 40%, transparent); }
+body[data-sport] .lghead { letter-spacing: .06em; }
+body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, transparent); }
+/* donja traka na mobitelu: prilijepljena za donji rub, staklena */
+@media (max-width: 760px) {
+  body[data-sport] .nav { background: color-mix(in srgb, var(--card) 78%, transparent); -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%); border-top: 1px solid color-mix(in srgb, white 50%, transparent);
+    box-shadow: 0 -8px 24px rgba(15,23,42,.10); }
+  body[data-sport] .nav button.on { color: var(--tint-text); }
+  body[data-sport] .nav button.on svg { filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--tint) 60%, transparent)); }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body[data-sport] .card, :root:not([data-theme="light"]) body[data-sport] .hero,
+  :root:not([data-theme="light"]) body[data-sport] header {
+    border-color: rgba(255,255,255,.08); box-shadow: 0 12px 34px rgba(0,0,0,.35); }
+  :root:not([data-theme="light"]) body[data-sport] .sports button { border-color: rgba(255,255,255,.08); }
+}
 
 /* ---------- europska natjecanja: animirane kartice ---------- */
 .uefa-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -868,6 +916,11 @@ function teamPopup(team) {
     <div class="tpop-grid"><div><h4>🏠 Forma kod kuće</h4>${seq(t.home)}</div><div><h4>✈️ Forma u gostima</h4>${seq(t.away)}</div></div>
   </div>`;
 }
+// mala forma pored imena u ponudi (od starije prema najnovijoj utakmici)
+function miniForm(form) { return form ? formHTML(form).replace('class="form"', 'class="form mini" title="Zadnjih 5: zelena pobjeda, narančasta neriješeno, crvena poraz"') : ""; }
+function footballForm(team) { return Engine.teamForm(team).last.slice().reverse().map(g => g.res).join(""); }
+function tableForm(lg, team) { const r = (lg.table || []).find(x => x.team === team); return r ? r.form : ""; }
+const teamLine = (name, form) => `<div class="tn"><span>${esc(name)}</span>${miniForm(form)}</div>`;
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
@@ -1097,7 +1150,7 @@ function renderSide() {
       const leg = legFor(f.home, f.away), i = INIT.fixtures.indexOf(f);
       return `<div class="fx">
         <div class="fx-top"><span class="fx-time">${Engine.hrTime(f)}</span>
-          <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
+          <div class="fx-teams">${teamLine(f.home, footballForm(f.home))}${teamLine(f.away, footballForm(f.away))}</div></div>
         ${(() => {
           const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
           const bets = [...BTNS.map(x => x[0]), ...BTNS_EXTRA.filter(b => open || isFav(b))]
@@ -1201,7 +1254,7 @@ function renderBasket() {
     const head = group !== lastGroup ? `<div class="lghead">${esc(group)}</div>` : ""; lastGroup = group;
     return `${head}<div class="fx">
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
-        <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div>${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>
+        <div class="fx-teams">${teamLine(f.home, tableForm(lg, f.home))}${teamLine(f.away, tableForm(lg, f.away))}${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>
       ${(() => {
         const key = f.league + "|" + f.home + "|" + f.away, open = expanded.has(key);
         const opts = [...basketButtons(f), ...otherExtra(lg.model, f.lines).filter(([b]) => open || isFav(b)).map(([b, t]) => [b, t, null])]
