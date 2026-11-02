@@ -302,6 +302,31 @@ details[open] summary::after { content: " ‹"; }
 .filters { margin-bottom: 12px; }
 .backup { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
+/* ---------- goriona: vatrica oko kartice ---------- */
+.nav button.fire { isolation: isolate; color: #c2410c; font-weight: 700; }
+.nav button.fire::before { content: ""; position: absolute; inset: -2px; border-radius: 11px; z-index: -1;
+  background: conic-gradient(from var(--ang, 0deg), #ff3d00, #ffb300, #ff6d00, #ffd54f, #ff3d00);
+  animation: fireSpin 2.2s linear infinite, fireGlow 1.1s ease-in-out infinite alternate; opacity: .9; }
+.nav button.fire::after { content: ""; position: absolute; inset: 1px; border-radius: 8px; z-index: -1; background: var(--card); }
+.nav button.fire.on::after { background: linear-gradient(180deg, #fff7ed, #ffedd5); }
+.nav button.fire .flame { display: inline-block; animation: flicker .9s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+@property --ang { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes fireSpin { to { --ang: 360deg; } }
+@keyframes fireGlow { from { box-shadow: 0 0 6px 1px rgba(255,90,0,.45); } to { box-shadow: 0 0 16px 4px rgba(255,140,0,.7); } }
+@keyframes flicker { 0% { transform: scale(1) rotate(-4deg); } 50% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(.95) rotate(-2deg); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .nav button.fire.on::after { background: linear-gradient(180deg, #3a1a08, #2a1206); } }
+@media (max-width: 760px) {
+  .nav button.fire::before { inset: 4px 8px; border-radius: 14px; }
+  .nav button.fire::after { inset: 6px 10px; border-radius: 12px; }
+  .nav button.fire .flame { font-size: 22px; line-height: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .nav button.fire::before, .nav button.fire .flame { animation: none; } }
+.hero.h-fire .hero-head { background: linear-gradient(160deg, #ff8a00 0%, #e52e00 55%, #7a1200 100%); position: relative; overflow: hidden; }
+.hero.h-fire .hero-head::after { content: "🔥"; position: absolute; right: 14px; top: 8px; font-size: 54px; opacity: .9;
+  animation: flicker 1s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+.fire-warn { background: rgba(255,120,0,.12); color: #b45309; border-radius: 12px; padding: 10px 14px; font-size: 14px; margin: 0 0 14px; line-height: 1.4; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fire-warn { color: #fdba74; } }
+
 /* ---------- obavijest ---------- */
 .toast { position: fixed; z-index: 60; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
   background: rgba(28,28,30,.92); color: #fff; padding: 11px 18px; border-radius: 22px; font-size: 14.5px; font-weight: 600;
@@ -363,6 +388,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
         <button data-view="suggest" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>
           Prijedlozi</button>
+        <button data-view="goriona" class="fire"><span class="flame" aria-hidden="true">🔥</span>Goriona</button>
         <button data-view="ticket">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg>
           Ponuda <span class="badge-n" id="navbadge"></span></button>
@@ -377,6 +403,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
   </header>
 
   <section id="suggest"><div class="loading">Učitavam prijedloge…</div></section>
+  <section id="goriona" hidden></section>
   <section id="history" hidden></section>
 
   <div id="ticketview" data-pane="fx" hidden>
@@ -641,13 +668,13 @@ $("#slipBody").addEventListener("click", e => {
   if (d) {
     legs = legs.filter(l => l.id != d.dataset.sdel); delete RES[d.dataset.sdel];
     renderLegs(); schedule(0);
-    if (view === "ticket") renderSide(); else if (view === "suggest") renderSuggest();
+    if (view === "ticket") renderSide(); else if (view === "suggest") renderSuggest(); else if (view === "goriona") renderGoriona();
     return;
   }
   if (e.target.id === "slipClear") {
     if (!confirm("Maknuti sve parove s tiketa?")) return;
     legs = []; RES = {}; slipOpen = false; renderLegs(); schedule(0);
-    if (view === "ticket") renderSide(); else if (view === "suggest") renderSuggest();
+    if (view === "ticket") renderSide(); else if (view === "suggest") renderSuggest(); else if (view === "goriona") renderGoriona();
     return;
   }
   if (e.target.id === "slipOpenTicket") { slipOpen = false; setView("ticket"); setPane("ticket"); }
@@ -1030,6 +1057,8 @@ function setView(v) {
   view = v;
   document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
   $("#ticketview").hidden = v !== "ticket"; $("#history").hidden = v !== "history"; $("#suggest").hidden = v !== "suggest";
+  $("#goriona").hidden = v !== "goriona";
+  if (v === "goriona") renderGoriona();
   if (v === "history") loadHistory(true);
   if (v === "suggest") renderSuggest();
   if (v === "ticket") renderSide();
@@ -1096,6 +1125,43 @@ async function renderSuggest() {
       <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;
 }
+/* ---------- goriona parovi ---------- */
+let GOR = null, gorMode = store.get("nt-gormode", "odds");
+async function renderGoriona() {
+  GOR = await api("/api/goriona", {mode: gorMode});
+  if (!GOR) return;
+  const seg = `<span class="seg">${[["odds", "Kvota 5+"], ["chance", "Šansa do 10 %"]].map(([v, t]) =>
+    `<button data-gmode="${v}" class="${v === gorMode ? "on" : ""}">${t}</button>`).join("")}</span>`;
+  const when = `${shortDay(GOR.from)} – ${shortDay(GOR.to)} · svi sportovi`;
+  const savedCount = pickCount; pickCount = 3;   // heroHTML uspoređuje s odabranim brojem parova
+  const hero = heroHTML("fire", "GORIONA PAROVI", when, GOR);
+  pickCount = savedCount;
+  $("#goriona").innerHTML = `
+    <div class="picks-ctrl"><label>Uvjet ${seg}</label></div>
+    <p class="fire-warn">🔥 <b>Visok rizik, visoka kvota.</b> Ovi parovi prolaze rijetko, ${gorMode === "chance" ? "otprilike 1 od 10" : "otprilike 1 od 5 do 1 od 6"} pojedinačno, a sva tri zajedno gotovo nikad. Igraj male uloge, samo za zabavu.</p>
+    <div class="picks-grid" style="grid-template-columns:minmax(0,640px)">${hero}</div>
+    <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
+      <p class="sub" style="margin:0;font-size:14px">Iz svih sportova (⚽ 🏀 🏒 🎾) u idućih 7 dana uzimaju se oklade s kvotom ${gorMode === "chance" ? "kojoj je šansa najviše 10 %" : "5 ili više"}, a od njih 3 s najvećom šansom.
+      Svaki par je iz drugog sporta i druge vrste oklade kad je moguće, i s drugog dana. Gdje kladionica nema kvotu, kvota je procijenjena (≈).</p></div>`;
+}
+$("#goriona").onclick = e => {
+  const m = e.target.closest("[data-gmode]");
+  if (m) { gorMode = m.dataset.gmode; store.set("nt-gormode", gorMode); return renderGoriona(); }
+  const b = e.target.closest("[data-sug]");
+  if (b) {
+    const r = GOR.picks[+b.dataset.sug.split(":")[1]];
+    const msg = toggleLeg({home: r.home, away: r.away, iso: r.date, time: r.time, sport: r.sport, lines: r.lines}, r.bet, r.odds, r.est);
+    renderGoriona();
+    return toast(`${msg} · ${parovi(filledLegs().length)}`, () => { setView("ticket"); setPane("ticket"); });
+  }
+  const all = e.target.closest("[data-sugall]");
+  if (all) {
+    const replace = filledLegs().length > 0 && confirm("Na tiketu već imaš parove.\n\nU redu = zamijeni tiket goriona parovima\nOdustani = dodaj ih postojećim parovima");
+    addPicks(GOR.picks, replace);
+    setView("ticket"); setPane("ticket");
+  }
+};
+
 function addPicks(rs, replace) {
   if (replace) { legs = []; RES = {}; }
   legs = legs.filter(l => l.home.trim() || l.away.trim());
@@ -1140,7 +1206,7 @@ $("#suggest").onclick = e => {
 // Prijedlozi ovise o današnjem datumu: osvježi kad se aplikacija ponovno otvori.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden || !INIT) return;
-  if (view === "suggest") renderSuggest(); else if (view === "ticket") renderSide();
+  if (view === "suggest") renderSuggest(); else if (view === "ticket") renderSide(); else if (view === "goriona") renderGoriona();
 });
 
 /* ---------- moji tiketi ---------- */

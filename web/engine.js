@@ -722,6 +722,19 @@ const Engine = (() => {
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
   // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana. Svi sportovi.
   // daySport / weekSport: "all", "nog" ili "kos" - posebno za prijedlog dana i tjedna
+  // Goriona: 3 para s visokom kvotom (5+) ili malom šansom (do 10 %) iz svih sportova, idućih 7 dana.
+  // Unutar tog uvjeta biraju se parovi s najvećom šansom, svaki iz drugog sporta ako je moguće.
+  function goriona(mode = "odds", now = new Date()) {
+    if (!D) return null;
+    const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
+    const pool = [
+      ...D.fixtures.map(f => ({sport: "nog", f, k: kickoff(f)})),
+      ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: BL[f.league].sport || "kos", f, k: new Date(f.utc)})),
+    ].filter(x => x.k > now && localIso(x.k) <= weekEnd).sort((a, b) => a.k - b.k);
+    const r = mode === "chance" ? pickFrom(pool, 0, 0.10, 3, true) : pickFrom(pool, 5, 1, 3, true);
+    return {...r, mode, from: localIso(now), to: weekEnd};
+  }
+
   function picks(minOdds = 1.5, maxP = 1, count = 5, daySport = "all", weekSport = "all", now = new Date()) {
     if (!D) return null;
     const today = localIso(now);
@@ -766,6 +779,7 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
+    if (path === "/api/goriona") return goriona(body?.mode || "odds");
     if (path === "/api/picks") return body?.mode === "chance"
       ? picks(0, body?.maxP || 0.5, body?.count || 5, body?.daySport || "all", body?.weekSport || "all")
       : picks(body?.minOdds || 1.5, 1, body?.count || 5, body?.daySport || "all", body?.weekSport || "all");
