@@ -424,6 +424,10 @@ const fullDay = iso => { const d = isoDate(iso); return `${WD[d.getDay()]} ${d.g
 const shortDay = iso => { const d = isoDate(iso); return `${WD3[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`; };
 const relDay = iso => { const diff = Math.round((isoDate(iso) - isoDate(todayIso())) / 864e5);
   return diff === 0 ? "Danas" : diff === 1 ? "Sutra" : WD3[isoDate(iso).getDay()]; };
+// Ponuda prikazuje utakmice od danas do danas + 4 dana (5 dana).
+const OFFER_DAYS = 4;
+const offerEnd = () => { const d = new Date(); d.setDate(d.getDate() + OFFER_DAYS); return localIso(d); };
+const inOffer = iso => iso >= todayIso() && iso <= offerEnd();
 const parovi = n => `${n} ${n === 1 ? "par" : n % 10 >= 2 && n % 10 <= 4 && (n < 10 || n > 20) ? "para" : "parova"}`;
 const fmtDate = iso => { const d = new Date(iso); return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}.`; };
 
@@ -655,13 +659,13 @@ function renderSide() {
   }
 
   const today = todayIso();
-  const all = INIT.fixtures.filter(lgMatch);
+  const all = INIT.fixtures.filter(f => lgMatch(f) && inOffer(f.iso));
   const counts = {};
   for (const f of all) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort();
   if (!days.length) {
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
-    $("#side").innerHTML = `<div class="empty">Za ovu ligu još nema objavljenih kvota.<br>Par možeš dodati ručno na tiketu.</div>`;
+    $("#side").innerHTML = `<div class="empty">Za ovu ligu nema utakmica od danas do ${shortDay(offerEnd())}.<br>Par možeš dodati ručno na tiketu.</div>`;
     return;
   }
   if (!selDay || !counts[selDay]) selDay = days.find(d => d >= today) || days[0];
@@ -720,11 +724,11 @@ function renderBasket() {
       ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td><b>${r.w}-${r.l}</b></td><td>${r.pf}:${r.pa}</td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
     return;
   }
-  const all = BK.fixtures.filter(f => f.league === bLeague), counts = {};
+  const all = BK.fixtures.filter(f => f.league === bLeague && inOffer(f.iso)), counts = {};
   for (const f of all) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort(), today = todayIso();
   if (!days.length) { $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
-    $("#side").innerHTML = `<div class="empty">U idućih 7 dana nema utakmica ove lige.</div>`; return; }
+    $("#side").innerHTML = `<div class="empty">Od danas do ${shortDay(offerEnd())} nema utakmica ove lige.</div>`; return; }
   if (!bDay || !counts[bDay]) bDay = days.find(d => d >= today) || days[0];
   $("#days").innerHTML = days.map(d => `<button class="dayb ${d === bDay ? "on" : ""}" data-day="${d}">
       <span class="d1">${relDay(d)}</span><span class="d2">${isoDate(d).getDate()}.${isoDate(d).getMonth() + 1}.</span><span class="d3">${counts[d]} utak.</span></button>`).join("");
