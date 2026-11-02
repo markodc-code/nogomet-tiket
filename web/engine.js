@@ -525,7 +525,8 @@ const Engine = (() => {
 
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
   // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana. Svi sportovi.
-  function picks(minOdds = 1.5, maxP = 1, count = 5, now = new Date()) {
+  // daySport / weekSport: "all", "nog" ili "kos" - posebno za prijedlog dana i tjedna
+  function picks(minOdds = 1.5, maxP = 1, count = 5, daySport = "all", weekSport = "all", now = new Date()) {
     if (!D) return null;
     const today = localIso(now);
     const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
@@ -533,13 +534,15 @@ const Engine = (() => {
       ...D.fixtures.map(f => ({sport: "nog", f, k: kickoff(f)})),
       ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: "kos", f, k: new Date(f.utc)})),
     ].filter(x => x.k > now).sort((a, b) => a.k - b.k);
-    const todays = open.filter(x => localIso(x.k) === today);
-    const dayIso = todays.length ? today : (open[0] ? localIso(open[0].k) : today);
-    const dayPool = todays.length ? todays : open.filter(x => localIso(x.k) === dayIso);
-    const weekPool = open.filter(x => localIso(x.k) <= weekEnd);
+    const bySport = sp => sp === "all" ? open : open.filter(x => x.sport === sp);
+    const dayOpen = bySport(daySport);
+    const todays = dayOpen.filter(x => localIso(x.k) === today);
+    const dayIso = todays.length ? today : (dayOpen[0] ? localIso(dayOpen[0].k) : today);
+    const dayPool = todays.length ? todays : dayOpen.filter(x => localIso(x.k) === dayIso);
+    const weekPool = bySport(weekSport).filter(x => localIso(x.k) <= weekEnd);
     const lastFixture = open.length ? localIso(open[open.length - 1].k) : null;
     return {
-      minOdds, maxP, count, today,
+      minOdds, maxP, count, today, daySport, weekSport,
       day: {...pickFrom(dayPool, minOdds, maxP, count, false), date: dayIso, isToday: dayIso === today},
       week: {...pickFrom(weekPool, minOdds, maxP, count, true), from: today, to: weekEnd, lastFixture},
     };
@@ -568,8 +571,8 @@ const Engine = (() => {
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
     if (path === "/api/picks") return body?.mode === "chance"
-      ? picks(0, body?.maxP || 0.5, body?.count || 5)
-      : picks(body?.minOdds || 1.5, 1, body?.count || 5);
+      ? picks(0, body?.maxP || 0.5, body?.count || 5, body?.daySport || "all", body?.weekSport || "all")
+      : picks(body?.minOdds || 1.5, 1, body?.count || 5, body?.daySport || "all", body?.weekSport || "all");
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);

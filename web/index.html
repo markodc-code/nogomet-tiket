@@ -259,6 +259,9 @@ details[open] summary::after { content: " ‹"; }
 .pick:first-of-type { border-top: 0; }
 .pick-day { padding: 9px 16px 5px; font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; background: var(--fill2); }
 .pick-day + .pick { border-top: 0; }
+.psport { margin-bottom: 10px; }
+.psport button { min-height: 38px; font-size: 14.5px; white-space: nowrap; padding: 0 6px; }
+@media (max-width: 420px) { .psport button { font-size: 13.5px; } }
 .pick .no { font-weight: 800; color: var(--muted); font-size: 15px; }
 .pick .m { font-weight: 600; font-size: 15.5px; min-width: 0; }
 .pick .m small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
@@ -825,6 +828,9 @@ let SUG = null, minOdds = store.get("nt-minodds", 1.5), maxP = store.get("nt-max
 let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
 const SPORT_ICON = {nog: "⚽", kos: "🏀"};
 
+let daySport = store.get("nt-daysport", "all"), weekSport = store.get("nt-weeksport", "all");
+const sportSeg = (k, cur) => `<div class="seg wide psport">${[["all", "Svi sportovi"], ["nog", "⚽ Nogomet"], ["kos", "🏀 Košarka"]]
+  .map(([v, t]) => `<button data-psport="${k}:${v}" class="${v === cur ? "on" : ""}">${t}</button>`).join("")}</div>`;
 const filterText = () => pickMode === "chance" ? `sa šansom ${Math.round((maxP - 0.1) * 100)}–${Math.round(maxP * 100)} %` : `s kvotom barem ${num(minOdds)}`;
 function heroHTML(kind, title, when, s) {
   if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
@@ -851,7 +857,7 @@ function heroHTML(kind, title, when, s) {
 }
 
 async function renderSuggest() {
-  SUG = await api("/api/picks", {mode: pickMode, minOdds, maxP, count: pickCount});
+  SUG = await api("/api/picks", {mode: pickMode, minOdds, maxP, count: pickCount, daySport, weekSport});
   if (!SUG) return;
   const seg = (attr, vals, cur, fmt) => `<span class="seg">${vals.map(v => `<button ${attr}="${v}" class="${v === cur ? "on" : ""}">${fmt(v)}</button>`).join("")}</span>`;
   const d = SUG.day, w = SUG.week;
@@ -859,13 +865,13 @@ async function renderSuggest() {
   const weekWhen = `${shortDay(w.from)} – ${shortDay(w.to)}${w.lastFixture && w.lastFixture < w.to ? ` · kvote do ${shortDay(w.lastFixture)}` : ""}`;
   $("#suggest").innerHTML = `
     <div class="picks-ctrl">
-      <label>Parova ${seg("data-count", [5, 10], pickCount, v => v)}</label>
+      <label>Parova ${seg("data-count", [1, 3, 5, 7, 10], pickCount, v => v)}</label>
       <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], pickMode === "odds" ? minOdds : null, v => num(v))}</label>
       <label>ili šansa do ${seg("data-maxp", [0.3, 0.4, 0.5, 0.6, 0.7], pickMode === "chance" ? maxP : null, v => Math.round(v * 100) + " %")}</label>
     </div>
     <div class="picks-grid">
-      ${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}
-      ${heroHTML("week", "PRIJEDLOG TJEDNA", weekWhen, w)}
+      <div>${sportSeg("day", daySport)}${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}</div>
+      <div>${sportSeg("week", weekSport)}${heroHTML("week", "PRIJEDLOG TJEDNA", weekWhen, w)}</div>
     </div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
@@ -894,6 +900,12 @@ $("#suggest").onclick = e => {
   if (m) { minOdds = +m.dataset.min; pickMode = "odds"; store.set("nt-minodds", minOdds); store.set("nt-pickmode", pickMode); return renderSuggest(); }
   const mp = e.target.closest("[data-maxp]");
   if (mp) { maxP = +mp.dataset.maxp; pickMode = "chance"; store.set("nt-maxp2", maxP); store.set("nt-pickmode", pickMode); return renderSuggest(); }
+  const sp = e.target.closest("[data-psport]");
+  if (sp) {
+    const [k, v] = sp.dataset.psport.split(":");
+    if (k === "day") { daySport = v; store.set("nt-daysport", v); } else { weekSport = v; store.set("nt-weeksport", v); }
+    return renderSuggest();
+  }
   const c = e.target.closest("[data-count]");
   if (c) { pickCount = +c.dataset.count; store.set("nt-count", pickCount); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");
