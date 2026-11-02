@@ -332,8 +332,20 @@ details[open] summary::after { content: " ‹"; }
 .slip-row b { display: block; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slip-row small { color: var(--muted); font-size: 12.5px; }
 .slip-row .sp { font-weight: 800; font-variant-numeric: tabular-nums; }
-.slip-foot { display: flex; gap: 8px; padding: 12px 16px calc(14px); border-top: .5px solid var(--line); }
-.slip-foot .btn { flex: 1; }
+.slip-foot { display: flex; gap: 8px; padding: 0 16px 12px; }
+.slip-foot .btn { flex: 1; padding: 0 8px; }
+.slip-row .sp small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; text-align: right; }
+.slip-sum { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 10px; align-items: end; padding: 12px 16px; border-top: .5px solid var(--line); }
+.slip-sum .lbl { display: block; margin-bottom: 3px; }
+.slip-sum b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.slip-sum #slipWin { color: var(--good); }
+.slip-stake { display: block; }
+.slip-stake div { display: flex; align-items: center; gap: 6px; background: var(--fill2); border-radius: 10px; padding: 0 10px; }
+.slip-stake input { width: 100%; min-width: 0; border: 0; background: transparent; min-height: 40px; font-weight: 700; font-size: 17px; text-align: right; }
+.slip-stake input:focus { outline: none; }
+.ob small.k { font-size: 11.5px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ob.on small.k { color: var(--tint-ink); opacity: .85; }
+.ob { min-height: 54px; }
 body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 @media (max-width: 760px) { body.has-slip .wrap { padding-bottom: calc(170px + env(safe-area-inset-bottom)); } }
 </style>
@@ -414,7 +426,20 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
     <span class="slip-p" id="slipP"></span>
     <span class="slip-chev" aria-hidden="true">▲</span>
   </button>
-  <div class="slip-body" id="slipBody"></div>
+  <div class="slip-body" id="slipBody">
+    <div id="slipRows"></div>
+    <div class="slip-sum">
+      <div><span class="lbl">Ukupna kvota</span><b id="slipOdds">–</b></div>
+      <label class="slip-stake"><span class="lbl">Ulog</span><div><input id="slipStake" inputmode="decimal" placeholder="2,00" aria-label="Ulog u eurima"><span>€</span></div></label>
+      <div><span class="lbl">Mogući dobitak</span><b id="slipWin">–</b></div>
+    </div>
+    <div class="slip-foot">
+      <button class="btn danger" id="slipClear">Očisti</button>
+      <button class="btn" id="slipOpenTicket">Otvori tiket</button>
+      <button class="btn primary" id="slipSave">Spremi tiket</button>
+    </div>
+    <div id="slipMsg" class="sub" style="text-align:center;padding:0 16px 12px;color:var(--good);font-weight:600"></div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <datalist id="teams"></datalist>
@@ -570,18 +595,31 @@ function renderSlip() {
   if (fl.length > slipCount) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
   slipCount = fl.length;
   $("#slipCount").textContent = fl.length;
-  if (!slipFlashT) $("#slipTitle").innerHTML = `Tiket · ${parovi(fl.length)}<small>${slipOpen ? "Dodirni za zatvaranje" : "Dodirni za pregled"}</small>`;
+  const money = slipMoney();
+  if (!slipFlashT) $("#slipTitle").innerHTML = `Tiket · ${parovi(fl.length)}<small>${money.odds ? `kvota ${money.est ? "≈" : ""}${num(money.odds)}${money.win ? ` · dobitak ${num(money.win)} €` : ""}` : (slipOpen ? "Dodirni za zatvaranje" : "Dodirni za pregled")}</small>`;
   $("#slipP").textContent = lastTotal && lastTotal.p != null && lastTotal.legs ? pct(lastTotal.p) : "";
   el.classList.toggle("open", slipOpen);
   $("#slipBar").setAttribute("aria-expanded", slipOpen);
-  $("#slipBody").innerHTML = fl.map(l => {
-    const r = RES[l.id] || {}, label = r.betLabel || (l.sport === "kos" ? Engine.basketLabel(l.bet) : l.bet);
+  $("#slipRows").innerHTML = fl.map(l => {
+    const r = RES[l.id] || {}, label = r.betLabel || (l.sport === "kos" ? Engine.basketLabel(l.bet) : l.bet), k = legOdds(l);
     return `<div class="slip-row"><span><b>${SPORT_EMOJI[l.sport || "nog"]} ${esc(l.home)} – ${esc(l.away)}</b>
       <small>${esc(label)}${l.date ? " · " + shortDay(l.date) : ""}${l.time ? " " + esc(l.time) : ""}</small></span>
-      <span class="sp">${r.p != null ? pct(r.p) : ""}</span>
+      <span class="sp">${r.p != null ? pct(r.p) : ""}<small>${k ? (l.oddsEst ? "≈" : "") + num(k) : "kvota ?"}</small></span>
       <button class="xbtn" data-sdel="${l.id}" aria-label="Makni par">×</button></div>`;
-  }).join("") + `<div class="slip-foot"><button class="btn danger" id="slipClear">Očisti</button>
-      <button class="btn primary" id="slipOpenTicket">Otvori tiket i spremi</button></div>`;
+  }).join("");
+  updateSlipMoney(money);
+}
+// Ukupna kvota (umnožak kvota parova) i mogući dobitak za upisani ulog.
+function slipMoney() {
+  const fl = filledLegs(), ks = fl.map(legOdds);
+  const odds = ks.length && ks.every(Boolean) ? ks.reduce((a, b) => a * b, 1) : null;
+  const stake = parseFloat(String($("#slipStake").value || "").replace(",", "."));
+  return {odds, est: fl.some(l => l.oddsEst), stake: stake > 0 ? stake : null, win: odds && stake > 0 ? odds * stake : null};
+}
+function updateSlipMoney(m) {
+  m = m || slipMoney();
+  $("#slipOdds").textContent = m.odds ? (m.est ? "≈" : "") + num(m.odds) : "–";
+  $("#slipWin").textContent = m.win ? num(m.win) + " €" : "–";
 }
 function slipFlash(msg) {
   clearTimeout(slipFlashT);
@@ -604,7 +642,22 @@ $("#slipBody").addEventListener("click", e => {
     return;
   }
   if (e.target.id === "slipOpenTicket") { slipOpen = false; setView("ticket"); setPane("ticket"); }
+  if (e.target.id === "slipSave") slipSave();
 });
+// Ulog je isti u skočnom tiketu i na tiketu.
+$("#slipStake").value = store.get("nt-stake", "");
+$("#slipStake").addEventListener("input", () => {
+  const v = $("#slipStake").value; store.set("nt-stake", v); $("#stake").value = v; updatePayout();
+  updateSlipMoney(); if (!slipFlashT) renderSlip();
+});
+$("#stake").addEventListener("input", () => { $("#slipStake").value = $("#stake").value; updateSlipMoney(); });
+async function slipSave() {
+  const m = slipMoney();
+  if (!m.stake && !confirm("Nisi upisao ulog. Spremiti tiket bez uloga?")) return;
+  const r = await api("/api/tickets/save", {stake: $("#slipStake").value, legs: filledLegs().map(({home, away, bet, odds, sport}) => ({home, away, bet, odds, sport}))});
+  $("#slipMsg").textContent = r.error ? r.error : "✓ Spremljeno u Moji tiketi";
+  if (!r.error) { loadHistory(false); setTimeout(() => { $("#slipMsg").textContent = ""; }, 3000); }
+}
 window.addEventListener("resize", () => renderSlip());
 
 $("#legs").addEventListener("input", e => {
@@ -615,7 +668,7 @@ $("#legs").addEventListener("input", e => {
     leg.bet = el.value === "R" ? "R1:0" : el.value;
     if ((el.value === "R") !== !!row.querySelector(".score")) renderLegs();
     renderSide();
-  } else leg[f] = el.value;
+  } else { leg[f] = el.value; if (f === "odds") leg.oddsEst = false; }
   schedule();
 });
 $("#legs").addEventListener("click", e => {
@@ -634,7 +687,7 @@ $("#clear").onclick = () => {
   legs = []; RES = {}; renderLegs(); renderSide(); schedule(0);
 };
 
-function save() { store.set("nt-legs", legs.map(({home, away, bet, odds, date, time, fx, sport, lines}) => ({home, away, bet, odds, date, time, fx, sport, lines}))); }
+function save() { store.set("nt-legs", legs.map(({home, away, bet, odds, oddsEst, date, time, fx, sport, lines}) => ({home, away, bet, odds, oddsEst, date, time, fx, sport, lines}))); }
 function schedule(ms = 300) { save(); updateBadges(); clearTimeout(timer); timer = setTimeout(compute, ms); }
 
 async function compute() {
@@ -728,6 +781,17 @@ function renderSummary(t) {
 }
 
 /* ---------- utakmice po danima ---------- */
+// Kvote: stvarna kvota kladionice ako postoji, inače procjena iz šanse (tipična marža ~6 %), označena s "≈".
+const estOdds = p => p > 0 ? Math.round(0.94 / p * 100) / 100 : null;
+function fxOdds(f, bet) {
+  const o = f.odds || {}, map = {"1": "1", "X": "X", "2": "2", "3+": "O2.5", "0-2": "U2.5"};
+  if (map[bet]) return o[map[bet]] || null;
+  const dbl = (a, b) => o[a] && o[b] ? Math.round(100 / (1 / o[a] + 1 / o[b])) / 100 : null;
+  return bet === "1X" ? dbl("1", "X") : bet === "X2" ? dbl("X", "2") : bet === "12" ? dbl("1", "2") : null;
+}
+const oddsLine = (real, p) => real ? num(real) : (p ? "≈" + num(estOdds(p)) : "");
+const legOdds = l => { const v = parseFloat(String(l.odds || "").replace(",", ".")); return v > 1 ? v : null; };
+
 // 10 najčešćih nogometnih oklada (drugi član: ključ kvote u podacima, ako postoji)
 const BTNS = [["1", "1"], ["X", "X"], ["2", "2"], ["1X", null], ["X2", null],
   ["12", null], ["GG", null], ["NG", null], ["3+", "O2.5"], ["0-2", "U2.5"]];
@@ -790,7 +854,7 @@ function renderSide() {
         <div class="fx-odds">${BTNS.map(([bet, key]) => {
           const pr = Engine.fixtureProbs(f)[bet], on = leg && leg.bet === bet;
           return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(bet)} šansa ${pct(pr)}">
-            <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b></button>`;
+            <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b><small class="k">${oddsLine(fxOdds(f, bet), pr)}</small></button>`;
         }).join("")}</div></div>`;
     }).join("");
   }).join("");
@@ -849,7 +913,7 @@ function renderBasket() {
       <div class="fx-odds">${basketButtons(f).map(([bet, label, odds]) => {
         const on = leg && leg.bet === bet, pr = Engine.basketProbFor(f, bet);
         return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
-          <span>${esc(label)}</span><b>${pct(pr)}</b></button>`;
+          <span>${esc(label)}</span><b>${pct(pr)}</b><small class="k">${oddsLine(odds, pr)}</small></button>`;
       }).join("")}</div></div>`;
   }).join("");
 }
@@ -874,14 +938,14 @@ function setPane(p) {
 const isNarrow = () => matchMedia("(max-width: 960px)").matches;
 
 // Dodir na kvotu: dodaje par, mijenja okladu na istoj utakmici ili ga miče ako je već odabran.
-function toggleLeg(f, bet, odds) {
+function toggleLeg(f, bet, odds, est) {
   const sp = f.sport || "nog", leg = legFor(f.home, f.away, sp), oddsTxt = odds ? String(odds).replace(".", ",") : "";
   let msg;
   if (leg && leg.bet === bet) { legs = legs.filter(l => l !== leg); delete RES[leg.id]; msg = "Maknuto s tiketa"; }
-  else if (leg) { Object.assign(leg, {bet, odds: oddsTxt}); msg = `Oklada promijenjena u ${bet}`; }
+  else if (leg) { Object.assign(leg, {bet, odds: oddsTxt, oddsEst: !!est}); msg = `Oklada promijenjena u ${bet}`; }
   else {
     legs = legs.filter(l => l.home.trim() || l.away.trim());
-    const nl = {id: ++uid, home: f.home, away: f.away, bet, odds: oddsTxt, date: f.date || f.iso, time: f.time ? (f.time.includes(":") ? f.time : "") : "", fx: true};
+    const nl = {id: ++uid, home: f.home, away: f.away, bet, odds: oddsTxt, oddsEst: !!est, date: f.date || f.iso, time: f.time ? (f.time.includes(":") ? f.time : "") : "", fx: true};
     if (sp !== "nog") { nl.sport = sp; nl.lines = f.lines; }
     legs.push(nl);
     msg = "Dodano na tiket";
@@ -893,14 +957,17 @@ $("#side").onclick = e => {
   const kb = e.target.closest("[data-bfx]");
   if (kb) {
     const f = INIT.basket.fixtures[+kb.dataset.bfx], bet = kb.dataset.b;
-    const odds = (basketButtons(f).find(x => x[0] === bet) || [])[2];
-    const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: f.time, sport: "kos", lines: f.lines}, bet, odds);
+    const real = (basketButtons(f).find(x => x[0] === bet) || [])[2];
+    const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: f.time, sport: "kos", lines: f.lines}, bet,
+      real || estOdds(Engine.basketProbFor(f, bet)), !real);
     renderSide();
     return toast(`${msg} · ${parovi(filledLegs().length)}`, isNarrow() ? () => setPane("ticket") : null);
   }
   const b = e.target.closest("[data-fx]"); if (!b) return;
   const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b, key = BTNS.find(x => x[0] === bet)[1];
-  const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: Engine.hrTime(f)}, bet, key ? f.odds[key] : null);
+  const real = fxOdds(f, bet);
+  const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: Engine.hrTime(f)}, bet,
+    real || estOdds(Engine.fixtureProbs(f)[bet]), !real);
   renderSide();
   const n = filledLegs().length;
   toast(`${msg} · ${parovi(n)}`, isNarrow() ? () => setPane("ticket") : null);
@@ -944,7 +1011,7 @@ function heroHTML(kind, title, when, s) {
       <span class="no">${i + 1}</span>
       <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${SPORT_ICON[r.sport] || ""} ${esc(r.leagueName)} · ${shortDay(r.date)} ${esc(r.time || "")}</small></span>
       <span class="r"><b>${pct(r.p)}</b><small>šansa</small></span>
-      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span>${r.est ? `<span class="chip bad">bez kvota: samo model</span>` : ""}
+      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span><span class="chip">kvota <b>${r.est ? "≈" : ""}${num(r.odds)}</b></span>${r.est ? `<span class="chip bad">bez kvota: samo model</span>` : ""}
         <button class="btn sm add ${on ? "on" : ""}" data-sug="${kind}:${i}">${on ? "✓ Na tiketu" : "+ Na tiket"}</button></span>
     </div>`; }).join("")}
     <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} ${filterText()}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
@@ -981,10 +1048,10 @@ function addPicks(rs, replace) {
   if (replace) { legs = []; RES = {}; }
   legs = legs.filter(l => l.home.trim() || l.away.trim());
   for (const r of rs) {
-    const sp = r.sport || "nog", leg = legFor(r.home, r.away, sp), odds = r.est ? "" : String(r.odds).replace(".", ",");
-    if (leg) Object.assign(leg, {bet: r.bet, odds});
+    const sp = r.sport || "nog", leg = legFor(r.home, r.away, sp), odds = String(r.odds).replace(".", ",");
+    if (leg) Object.assign(leg, {bet: r.bet, odds, oddsEst: !!r.est});
     else {
-      const nl = {id: ++uid, home: r.home, away: r.away, bet: r.bet, odds, date: r.date, time: r.time, fx: true};
+      const nl = {id: ++uid, home: r.home, away: r.away, bet: r.bet, odds, oddsEst: !!r.est, date: r.date, time: r.time, fx: true};
       if (sp !== "nog") { nl.sport = sp; nl.lines = r.lines; }
       legs.push(nl);
     }
@@ -1007,7 +1074,7 @@ $("#suggest").onclick = e => {
   const b = e.target.closest("[data-sug]");
   if (b) {
     const [k, i] = b.dataset.sug.split(":"), r = SUG[k === "day" ? "day" : "week"].picks[+i];
-    const msg = toggleLeg({home: r.home, away: r.away, iso: r.date, time: r.time, sport: r.sport, lines: r.lines}, r.bet, r.est ? null : r.odds);
+    const msg = toggleLeg({home: r.home, away: r.away, iso: r.date, time: r.time, sport: r.sport, lines: r.lines}, r.bet, r.odds, r.est);
     renderSuggest();
     return toast(`${msg} · ${parovi(filledLegs().length)}`, () => { setView("ticket"); setPane("ticket"); });
   }
