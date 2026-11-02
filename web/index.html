@@ -921,7 +921,7 @@ function teamPopup(team) {
 // mala forma pored imena u ponudi (od starije prema najnovijoj utakmici)
 function miniForm(form) { return form ? formHTML(form).replace('class="form"', 'class="form mini" title="Zadnjih 5: zelena pobjeda, narančasta neriješeno, crvena poraz"') : ""; }
 function footballForm(team) { return Engine.teamForm(team).last.slice().reverse().map(g => g.res).join(""); }
-function tableForm(lg, team) { const r = (lg.table || []).find(x => x.team === team); return r ? r.form : ""; }
+function tableForm(lg, team) { const r = (lg.table || []).find(x => x.team === team); return (lg.forms || {})[team] || (r ? r.form : ""); }
 const teamLine = (name, form) => `<div class="tn"><span>${esc(name)}</span>${miniForm(form)}</div>`;
 // zastavice država uz lige (slika radi svugdje, emoji za padajući izbornik)
 const FLAG_ISO = {ENG: "gb-eng", SCO: "gb-sct", ESP: "es", ITA: "it", GER: "de", FRA: "fr", NED: "nl", POR: "pt", BEL: "be",

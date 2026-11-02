@@ -233,8 +233,12 @@ def phi(x):
     return 0.5 * (1 + math.erf(x / math.sqrt(2)))
 
 
-def table(games, teams):
+def table(games, teams, older=()):
     tab = {t: {"team": t, "p": 0, "w": 0, "l": 0, "pf": 0, "pa": 0, "form": []} for t in teams}
+    form = {}
+    for _, h, a, hs, as_ in sorted(list(older) + list(games)):
+        form.setdefault(h, []).append("W" if hs > as_ else "L")
+        form.setdefault(a, []).append("W" if as_ > hs else "L")
     for _, h, a, hs, as_ in sorted(games):
         for t, f, ag in ((h, hs, as_), (a, as_, hs)):
             if t not in tab:
@@ -244,7 +248,7 @@ def table(games, teams):
             r["w" if win else "l"] += 1
             r["form"].append("W" if win else "L")
     for r in tab.values():
-        r["form"] = "".join(r["form"][-5:])
+        r["form"] = "".join(form.get(r["team"], r["form"])[-5:])
     return sorted(tab.values(), key=lambda r: (-(r["w"] / r["p"] if r["p"] else 0), -(r["pf"] - r["pa"])))
 
 
@@ -291,7 +295,7 @@ def build(today=None, force=False, accuracy=None):
         out["leagues"].append({
             "code": code, "name": info["name"], "flag": info["flag"], "country": info["country"],
             "weight": info["marketWeight"], "hasOdds": code == "NBA",
-            "teams": teams, "aliases": d["aliases"], "table": table(d["current"], teams),
+            "teams": teams, "aliases": d["aliases"], "table": table(d["current"], teams, d["previous"]),
             "mu": r2(mdl.mu), "home": r2(mdl.home), "sdM": r2(mdl.sd_margin), "sdT": r2(mdl.sd_total),
             "off": {t: r2(mdl.off.get(t, 0)) for t in teams}, "def": {t: r2(mdl.de.get(t, 0)) for t in teams},
             "accuracy": accuracy.get(code),

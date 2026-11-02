@@ -261,6 +261,16 @@ def tennis_backtest(matches, today):
     return out
 
 
+def tennis_forms(matches, names):
+    """Zadnjih 5 mečeva igrača iz svih turnira, najstariji prvi."""
+    form = {}
+    for m in sorted(matches, key=lambda m: m[0]):
+        for k, name in ((0, m[2]), (1, m[3])):
+            if name in names:
+                form.setdefault(name, []).append("W" if m[4] == k else "L")
+    return {n: "".join(f[-5:]) for n, f in form.items()}
+
+
 def tennis_table(matches, R, N, lg, today):
     since = dt.datetime.combine(today - dt.timedelta(days=365), dt.time(), dt.timezone.utc)
     wl, form = {}, {}
@@ -319,6 +329,7 @@ def build(today=None, force=False, accuracy=None):
                 "elo": {p: round(R.get((lg, p), 1500.0), 1) for p in players},
                 "n": {p: N.get((lg, p), 0) for p in players},
                 "table": tennis_table(matches, R, N, lg, today)[:100],
+                "forms": tennis_forms(matches, {n for f in upcoming if f["league"] == lg for n in (f["home"], f["away"])}),
                 "accuracy": acc.get(lg),
             })
         out["fixtures"] += upcoming

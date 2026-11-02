@@ -821,7 +821,7 @@ const Engine = (() => {
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
       basket: {
         leagues: B.leagues.map(l => ({code: l.code, sport: l.sport || "kos", model: l.model || "points", name: l.name, flag: l.flag, country: l.country, hasOdds: l.hasOdds,
-          accuracy: l.accuracy, teams: l.teams, table: l.table})),
+          accuracy: l.accuracy, teams: l.teams, table: l.table, forms: l.forms})),
         fixtures: B.fixtures.map(f => ({...f, lines: basketLines(f)})),
       },
       fixtures: D.fixtures, bets: Object.entries(BET_LABELS).map(([code, label]) => ({code, label})),
