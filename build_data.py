@@ -8,6 +8,7 @@ import os
 import sys
 
 import basket as K
+import espn_soccer as E
 import model as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,6 +47,15 @@ def build(force=False, out=OUT):
             upcoming.append({"league": f["league"], "iso": d.isoformat(), "time": f["time"],
                              "home": f["home"], "away": f["away"],
                              "odds": {k: v for k, v in f["odds"].items() if v}})
+    # Ostatak tjedna s ESPN-a (football-data objavljuje samo iduće kolo s kvotama).
+    try:
+        have = {(f["home"], f["away"]) for f in upcoming}
+        extra = [f for f in E.fixtures(models, today, force)
+                 if (f["home"], f["away"]) not in have and (f["home"], f["away"]) not in played_pairs_recent]
+        upcoming += extra
+        print(f"  ESPN nogomet: +{len(extra)} utakmica")
+    except Exception as e:
+        print("  ! ESPN nogomet nije uspio:", e)
     upcoming.sort(key=lambda f: (f["iso"], f["time"], f["league"]))
 
     results = []

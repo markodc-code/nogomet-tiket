@@ -5,6 +5,7 @@
 const Engine = (() => {
   let D = null, L = {}, where = {}, byNorm = {}, alias = {}, fixByPair = {}, resultsByPair = {};
   // košarka
+  let lamCache = {}, probCache = {};
   let B = {leagues: [], fixtures: [], results: []}, BL = {}, BI = {byNorm: {}, alias: {}, where: {}}, bFix = {}, bRes = {};
 
   const BET_LABELS = {
@@ -25,7 +26,7 @@ const Engine = (() => {
     const r = await fetch("data.json" + (force ? "?t=" + Date.now() : ""), {cache: force ? "reload" : "default"});
     if (!r.ok) throw new Error("Ne mogu učitati podatke (" + r.status + ")");
     D = await r.json();
-    L = {}; where = {}; byNorm = {}; fixByPair = {}; resultsByPair = {};
+    L = {}; where = {}; byNorm = {}; fixByPair = {}; resultsByPair = {}; lamCache = {}; probCache = {};
     for (const lg of D.leagues) {
       L[lg.code] = lg;
       for (const t of lg.teams) { where[t] = lg.code; byNorm[norm(t)] = t; }
@@ -181,19 +182,24 @@ const Engine = (() => {
     if (h === a) return {error: "Domaćin i gost su ista momčad."};
     if (where[h] !== where[a]) return {error: `${h} (${L[where[h]].name}) i ${a} (${L[where[a]].name}) nisu u istoj ligi.`};
     const lg = L[where[h]], bet = String(leg.bet || "1").trim();
-    const [mlh, mla] = expectedGoals(lg, h, a);
     const fx = fixByPair[h + "|" + a];
     const mk = fx ? marketProbabilities(fx.odds) : {};
-    let lh = mlh, la = mla, source = "model";
-    if (Object.keys(mk).length) {
-      const ml = marketLambdas(mk, mlh, mla, lg.rho);
-      if (ml) {
-        const w = lg.weight ?? D.marketWeight;
-        lh = Math.exp((1 - w) * Math.log(mlh) + w * Math.log(ml[0]));
-        la = Math.exp((1 - w) * Math.log(mla) + w * Math.log(ml[1]));
-        source = "model+kladionice";
+    const ck = h + "|" + a;
+    if (!lamCache[ck]) {
+      const [mlh, mla] = expectedGoals(lg, h, a);
+      let lh = mlh, la = mla, source = "model";
+      if (Object.keys(mk).length) {
+        const ml = marketLambdas(mk, mlh, mla, lg.rho);
+        if (ml) {
+          const w = lg.weight ?? D.marketWeight;
+          lh = Math.exp((1 - w) * Math.log(mlh) + w * Math.log(ml[0]));
+          la = Math.exp((1 - w) * Math.log(mla) + w * Math.log(ml[1]));
+          source = "model+kladionice";
+        }
       }
+      lamCache[ck] = {lh, la, mlh, mla, source};
     }
+    const {lh, la, mlh, mla, source} = lamCache[ck];
     const mat = matrix(lh, la, lg.rho), modelMat = matrix(mlh, mla, lg.rho);
     let p, pModel;
     try { p = betProbability(mat, bet); pModel = betProbability(modelMat, bet); }
@@ -423,45 +429,76 @@ const Engine = (() => {
   }
   const notStarted = (f, now) => kickoff(f) > now;
 
-  function pickFrom(pool, minOdds, count) {
-    const best = [];
-    for (const f of pool) {
-      let top = null;
-      for (const [bet, key] of MARKETS) {
-        const odds = f.odds[key];
-        if (!odds || odds < minOdds) continue;
-        const r = evaluateLeg({home: f.home, away: f.away, bet, odds});
-        if (r.error) continue;
-        const cand = {...r, ev: r.p * odds - 1};
-        if (!top || cand.p > top.p) top = cand;
+  // Šanse za gumbe nogometne ponude (1, X, 2, 3+, 0-2) jednim izračunom.
+  function fixtureProbs(f) {
+    const k = f.home + "|" + f.away;
+    if (!probCache[k]) {
+      const r = evaluateLeg({home: f.home, away: f.away, bet: "1"});
+      probCache[k] = r.error ? {} : {"1": r.basic["1"], "X": r.basic.X, "2": r.basic["2"], "3+": r.basic["O2.5"], "0-2": 1 - r.basic["O2.5"], source: r.source};
+    }
+    return probCache[k];
+  }
+  // Kad za utakmicu nema kvota, kvotu procjenjujemo iz šanse uz tipičnu maržu kladionica (~6 %).
+  const EST_MARGIN = 0.94;
+  const estOdds = p => Math.round(EST_MARGIN / p * 100) / 100;
+  function candidates(item) {
+    const f = item.f, out = [];
+    if (item.sport === "kos") {
+      const L = basketLines(f), o = f.odds || {};
+      for (const [bet, odds] of [["1", o["1"]], ["2", o["2"]], [`H1:${L.spread}`, L.market ? o.H1 : null],
+        [`H2:${-L.spread}`, L.market ? o.H2 : null], [`O:${L.total}`, o.total === L.total ? o.O : null], [`U:${L.total}`, o.total === L.total ? o.U : null]]) {
+        const p = basketProbFor(f, bet);
+        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
       }
-      if (top) best.push(top);
+    } else {
+      const pr = fixtureProbs(f);
+      for (const [bet, key] of MARKETS) {
+        const p = pr[bet], odds = f.odds[key];
+        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
+      }
+    }
+    return out;
+  }
+  function pickFrom(pool, maxP, count) {
+    const best = [];
+    for (const item of pool) {
+      let top = null;
+      for (const c of candidates(item)) if (c.p <= maxP && (!top || c.p > top.p)) top = c;
+      if (!top) continue;
+      const f = item.f, leg = {home: f.home, away: f.away, bet: top.bet, odds: top.odds, sport: item.sport};
+      const r = item.sport === "kos" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
+      if (r.error) continue;
+      best.push({...r, sport: item.sport, est: top.est, ev: r.p * top.odds - 1,
+        date: localIso(item.k), time: `${String(item.k.getHours()).padStart(2, "0")}:${String(item.k.getMinutes()).padStart(2, "0")}`,
+        lines: item.sport === "kos" ? basketLines(f) : undefined});
     }
     best.sort((a, b) => b.p - a.p);
     const picks = best.slice(0, count);
-    const total = picks.length ? {
-      p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1),
-    } : null;
+    const total = picks.length ? {p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1)} : null;
     if (total) total.value = total.p * total.odds - 1;
-    return {picks, total, considered: pool.length};
+    const sports = new Set(pool.map(x => x.sport));
+    return {picks, total, considered: pool.length, sports: [...sports]};
   }
 
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
-  // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana.
-  function picks(minOdds = 1.5, count = 5, now = new Date()) {
+  // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana. Svi sportovi.
+  function picks(maxP = 0.65, count = 5, now = new Date()) {
     if (!D) return null;
     const today = localIso(now);
     const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
-    const open = D.fixtures.filter(f => notStarted(f, now)).map(f => ({...f, kickoff: kickoff(f)}));
-    const todays = open.filter(f => localIso(f.kickoff) === today);
-    const dayIso = todays.length ? today : (open[0] ? localIso(open[0].kickoff) : today);
-    const dayPool = todays.length ? todays : open.filter(f => localIso(f.kickoff) === dayIso);
-    const weekPool = open.filter(f => localIso(f.kickoff) <= weekEnd);
-    const lastFixture = D.fixtures.length ? D.fixtures[D.fixtures.length - 1].iso : null;
+    const open = [
+      ...D.fixtures.map(f => ({sport: "nog", f, k: kickoff(f)})),
+      ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: "kos", f, k: new Date(f.utc)})),
+    ].filter(x => x.k > now).sort((a, b) => a.k - b.k);
+    const todays = open.filter(x => localIso(x.k) === today);
+    const dayIso = todays.length ? today : (open[0] ? localIso(open[0].k) : today);
+    const dayPool = todays.length ? todays : open.filter(x => localIso(x.k) === dayIso);
+    const weekPool = open.filter(x => localIso(x.k) <= weekEnd);
+    const lastFixture = open.length ? localIso(open[open.length - 1].k) : null;
     return {
-      minOdds, count, today,
-      day: {...pickFrom(dayPool, minOdds, count), date: dayIso, isToday: dayIso === today},
-      week: {...pickFrom(weekPool, minOdds, count), from: today, to: weekEnd, lastFixture},
+      maxP, count, today,
+      day: {...pickFrom(dayPool, maxP, count), date: dayIso, isToday: dayIso === today},
+      week: {...pickFrom(weekPool, maxP, count), from: today, to: weekEnd, lastFixture},
     };
   }
   const hrTime = f => { const k = kickoff(f); return `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`; };
@@ -487,7 +524,7 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
-    if (path === "/api/picks") return picks(body?.minOdds || 1.5, body?.count || 5);
+    if (path === "/api/picks") return picks(body?.maxP || 0.65, body?.count || 5);
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);
@@ -504,5 +541,5 @@ const Engine = (() => {
     return added;
   }
 
-  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, _test: {findTeam, settleBet, matrix, betProbability}};
 })();

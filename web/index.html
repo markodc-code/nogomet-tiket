@@ -200,7 +200,8 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .leg .field, .leg select { background: var(--card); }
 .xbtn { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--fill); color: var(--muted); font-size: 18px; line-height: 1;
   flex: none; display: inline-flex; align-items: center; justify-content: center; }
-.leg-bet { display: grid; grid-template-columns: 1fr 92px; gap: 6px; margin-top: 10px; }
+.leg-bet { display: grid; grid-template-columns: 1fr 120px; gap: 6px; margin-top: 10px; }
+.leg-bet .odds { font-size: 14px; }
 .betbox { display: flex; gap: 6px; min-width: 0; }
 .betbox .score { width: 70px; flex: none; }
 .res { margin-top: 10px; display: none; }
@@ -457,7 +458,7 @@ function legRow(l) {
     <div class="leg-bet">
       <div class="betbox"><select data-f="bet" aria-label="Oklada">${l.sport === "kos" ? basketBetOptions(l) : betOptions(l.bet)}</select>
         ${isScore ? `<input class="field score" placeholder="2:1" value="${esc(l.bet.slice(1))}" data-f="score">` : ""}</div>
-      <input class="field odds" placeholder="Kvota" inputmode="decimal" value="${esc(l.odds)}" data-f="odds" aria-label="Kvota">
+      <input class="field odds" placeholder="Kvota (za dobitak)" inputmode="decimal" value="${esc(l.odds)}" data-f="odds" aria-label="Kvota tvoje kladionice, za izračun dobitka">
     </div>
     <div class="res"></div>
   </div>`;
@@ -544,12 +545,10 @@ async function compute() {
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
-  const chips = [`<span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>`];
+  const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
   if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: samo model</span>`);
-  if (r.value != null) chips.push(r.value >= 0
-    ? `<span class="chip good">Kvota je dobra: +${num(r.value * 100, 0)} %</span>`
-    : `<span class="chip bad">Kvota je preniska: ${num(r.value * 100, 0)} %</span>`);
+
   const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.w}-${row.l} · koševi ${row.pf}:${row.pa}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
   const sgn = x => (x >= 0 ? "+" : "−") + num(Math.abs(x), 1);
   return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
@@ -570,12 +569,10 @@ function basketLegHTML(r) {
 function legHTML(r) {
   if (r.error) return `<div class="err">${esc(r.error)}</div>`;
   if (r.sport === "kos") return basketLegHTML(r);
-  const chips = [`<span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>`];
+  const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
   if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: manje pouzdano</span>`);
-  if (r.value != null) chips.push(r.value >= 0
-    ? `<span class="chip good">Kvota je dobra: +${num(r.value * 100, 0)} %</span>`
-    : `<span class="chip bad">Kvota je preniska: ${num(r.value * 100, 0)} %</span>`);
+
   const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.pts} bod. · ${row.gf}:${row.ga}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
   return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
     <div class="meta">Šansa za <b>${esc(r.betLabel)}</b>${r.source !== "model" ? ` · samo model ${pct(r.pModel)}` : ""}</div>
@@ -611,20 +608,11 @@ function renderSummary(t) {
   if (!t.legs) { el.hidden = true; return; }
   el.hidden = false;
   const oneIn = t.p > 0 ? Math.round(1 / t.p) : null;
-  let valueBlock = "";
-  if (t.odds) {
-    const good = t.value >= 0;
-    valueBlock = `<div><div class="lbl">Tvoja kvota</div><div class="v">${num(t.odds)}</div></div>
-      <div><div class="lbl">Očekivani povrat</div><div class="v" style="color:var(--${good ? "good" : "bad"})">${good ? "+" : ""}${num(t.value * 100, 0)} %</div></div>`;
-  }
   const notes = [];
   if (oneIn) notes.push(oneIn <= 1 ? "Ovakav tiket prolazi gotovo uvijek." : `Ovakav tiket u prosjeku prolazi <b>1 put od ${oneIn}</b>.`);
-  if (t.odds && t.value < 0) notes.push(`Na svakih 10 € dugoročno se vraća oko ${num(10 * (1 + t.value), 2)} €.`);
-  if (t.odds && t.value >= 0) notes.push("Ukupna kvota je veća od fer kvote.");
   if (t.duplicate) notes.push(`<span style="color:var(--warn)">Isti par je na tiketu više puta, pa ukupna šansa nije točna.</span>`);
   el.innerHTML = `<div class="lbl">Šansa da tiket prođe · ${parovi(t.legs)}</div>
     <div class="big">${pct(t.p)}</div>
-    <div class="sumgrid"><div><div class="lbl">Fer kvota</div><div class="v">${num(t.fairOdds)}</div></div>${valueBlock}</div>
     <div class="note">${notes.join(" ")}</div>`;
 }
 
@@ -685,9 +673,9 @@ function renderSide() {
         <div class="fx-top"><span class="fx-time">${Engine.hrTime(f)}</span>
           <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
         <div class="fx-odds">${BTNS.map(([bet, key]) => {
-          const o = f.odds[key], on = leg && leg.bet === bet;
-          return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${o ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(bet)} kvota ${o ? num(o) : "nema"}">
-            <span>${bet}</span><b>${o ? num(o) : "–"}</b></button>`;
+          const pr = Engine.fixtureProbs(f)[bet], on = leg && leg.bet === bet;
+          return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(bet)} šansa ${pct(pr)}">
+            <span>${bet}</span><b>${pr ? pct(pr) : "–"}</b></button>`;
         }).join("")}</div></div>`;
     }).join("");
   }).join("");
@@ -714,8 +702,8 @@ function renderBasket() {
   const lg = BK.leagues.find(l => l.code === bLeague);
   $("#lgf").innerHTML = `<div class="seg wide">${BK.leagues.map(l => `<button data-bl="${l.code}" class="${l.code === bLeague ? "on" : ""}">${esc(l.name)}</button>`).join("")}</div>
     <div class="srcnote">${lg.hasOdds
-      ? `Kvote: <b>DraftKings (SAD)</b>, pretvorene u decimalne. Šanse se oslanjaju na njih.`
-      : `Za Euroligu nema besplatnih kvota, pa su šanse <b>samo iz modela</b>. Umjesto kvote gumb pokazuje šansu.`}
+      ? `Šanse se oslanjaju na kvote kladionice <b>DraftKings (SAD)</b>.`
+      : `Za Euroligu nema besplatnih kvota, pa su šanse <b>samo iz modela</b>.`}
       ${lg.accuracy ? ` Prošla sezona: model je pogodio pobjednika u <b>${pct(lg.accuracy.hitModel)}</b> utakmica.` : ""}</div>`;
   if (side === "tb") {
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
@@ -740,9 +728,9 @@ function renderBasket() {
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
         <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
       <div class="fx-odds b6">${basketButtons(f).map(([bet, label, odds]) => {
-        const on = leg && leg.bet === bet, pr = odds ? null : Engine.basketProbFor(f, bet);
-        return `<button class="ob ${on ? "on" : ""} ${odds ? "" : "prob"}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
-          <span>${esc(label)}</span><b>${odds ? num(odds) : pct(pr)}</b></button>`;
+        const on = leg && leg.bet === bet, pr = Engine.basketProbFor(f, bet);
+        return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
+          <span>${esc(label)}</span><b>${pct(pr)}</b></button>`;
       }).join("")}</div></div>`;
   }).join("");
 }
@@ -811,32 +799,34 @@ function setView(v) {
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 /* ---------- prijedlog dana i prijedlog tjedna ---------- */
-let SUG = null, minOdds = store.get("nt-minodds", 1.5), pickCount = store.get("nt-count", 5);
+let SUG = null, maxP = store.get("nt-maxp", 0.65), pickCount = store.get("nt-count", 5);
+const SPORT_ICON = {nog: "⚽", kos: "🏀"};
 
 function heroHTML(kind, title, when, s) {
   if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
-    <div class="none">Za ovo razdoblje još nema objavljenih kvota${minOdds > 1.3 ? " uz odabranu najmanju kvotu" : ""}. Kvote se objavljuju par dana prije utakmica.</div></div>`;
+    <div class="none">Za ovo razdoblje nema utakmica uz odabranu najveću šansu. Probaj višu granicu šanse.</div></div>`;
   const t = s.total, short = s.picks.length < pickCount;
   return `<div class="hero h-${kind}">
     <div class="hero-head"><h2>${title}</h2><div class="when">${when} · ${parovi(s.picks.length)} od ${s.considered} utakmica</div>
-      <div class="hero-stats"><div>Šansa svih<b>${pct(t.p)}</b></div><div>Ukupna kvota<b>${num(t.odds)}</b></div>
-        <div>Prolazi<b>1 od ${Math.max(1, Math.round(1 / t.p))}</b></div></div></div>
+      <div class="hero-stats"><div>Šansa svih<b>${pct(t.p)}</b></div>
+        <div>Prolazi<b>1 od ${Math.max(1, Math.round(1 / t.p))}</b></div>
+        <div>Prosječna šansa<b>${pct(s.picks.reduce((x, r) => x + r.p, 0) / s.picks.length)}</b></div></div></div>
     ${s.picks.map((r, i) => {
-      const leg = legFor(r.home, r.away), on = leg && leg.bet === r.bet;
+      const leg = legFor(r.home, r.away, r.sport), on = leg && leg.bet === r.bet;
       return `<div class="pick">
       <span class="no">${i + 1}</span>
-      <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${esc(r.flag)} ${esc(r.leagueName)} · ${shortDay(r.date)} ${esc(r.time || "")}</small></span>
+      <span class="m">${esc(r.home)} – ${esc(r.away)}<small>${SPORT_ICON[r.sport] || ""} ${esc(r.leagueName)} · ${shortDay(r.date)} ${esc(r.time || "")}</small></span>
       <span class="r"><b>${pct(r.p)}</b><small>šansa</small></span>
-      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span><span class="chip">kvota <b>${num(r.odds)}</b></span>
+      <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span>${r.est ? `<span class="chip bad">bez kvota: samo model</span>` : ""}
         <button class="btn sm add ${on ? "on" : ""}" data-sug="${kind}:${i}">${on ? "✓ Na tiketu" : "+ Na tiket"}</button></span>
     </div>`; }).join("")}
-    <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} s kvotom barem ${num(minOdds)}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
+    <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} sa šansom do ${pct(maxP)}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
       <button class="btn primary block" data-sugall="${kind}">Stavi svih ${s.picks.length} na tiket</button></div>
   </div>`;
 }
 
 async function renderSuggest() {
-  SUG = await api("/api/picks", {minOdds, count: pickCount});
+  SUG = await api("/api/picks", {maxP, count: pickCount});
   if (!SUG) return;
   const seg = (attr, vals, cur, fmt) => `<span class="seg">${vals.map(v => `<button ${attr}="${v}" class="${v === cur ? "on" : ""}">${fmt(v)}</button>`).join("")}</span>`;
   const d = SUG.day, w = SUG.week;
@@ -845,38 +835,43 @@ async function renderSuggest() {
   $("#suggest").innerHTML = `
     <div class="picks-ctrl">
       <label>Parova ${seg("data-count", [5, 10], pickCount, v => v)}</label>
-      <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], minOdds, v => num(v))}</label>
+      <label>Šansa do ${seg("data-max", [0.8, 0.7, 0.65, 0.55, 0.45], maxP, v => Math.round(v * 100) + " %")}</label>
     </div>
     <div class="picks-grid">
       ${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}
       ${heroHTML("week", "PRIJEDLOG TJEDNA", weekWhen, w)}
     </div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
-      <p class="sub" style="margin:0;font-size:14px">Iz svake utakmice uzima se oklada s najvećom šansom (1, X, 2, 3+ ili 0-2 gola) čija je kvota barem odabrana, pa se prikaže ${pickCount} najsigurnijih.
-      Prijedlozi su zasad samo iz nogometa.
+      <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
+      Iz svake utakmice uzima se oklada s najvećom šansom koja nije veća od odabrane granice, pa se prikaže ${pickCount} najsigurnijih.
+      Granica postoji jer oklade s vrlo velikom šansom (npr. 90 %) gotovo ništa ne plaćaju.
       <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
-      <p class="sub" style="font-size:14px">Viša kvota znači manju šansu, jer kvota je cijena šanse. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
+      <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;
 }
 function addPicks(rs, replace) {
   if (replace) { legs = []; RES = {}; }
   legs = legs.filter(l => l.home.trim() || l.away.trim());
   for (const r of rs) {
-    const leg = legFor(r.home, r.away), odds = String(r.odds).replace(".", ",");
+    const sp = r.sport || "nog", leg = legFor(r.home, r.away, sp), odds = r.est ? "" : String(r.odds).replace(".", ",");
     if (leg) Object.assign(leg, {bet: r.bet, odds});
-    else legs.push({id: ++uid, home: r.home, away: r.away, bet: r.bet, odds, date: r.date, time: r.time, fx: true});
+    else {
+      const nl = {id: ++uid, home: r.home, away: r.away, bet: r.bet, odds, date: r.date, time: r.time, fx: true};
+      if (sp !== "nog") { nl.sport = sp; nl.lines = r.lines; }
+      legs.push(nl);
+    }
   }
   renderLegs(); schedule(0);
 }
 $("#suggest").onclick = e => {
-  const m = e.target.closest("[data-min]");
-  if (m) { minOdds = +m.dataset.min; store.set("nt-minodds", minOdds); return renderSuggest(); }
+  const m = e.target.closest("[data-max]");
+  if (m) { maxP = +m.dataset.max; store.set("nt-maxp", maxP); return renderSuggest(); }
   const c = e.target.closest("[data-count]");
   if (c) { pickCount = +c.dataset.count; store.set("nt-count", pickCount); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");
   if (b) {
     const [k, i] = b.dataset.sug.split(":"), r = SUG[k === "day" ? "day" : "week"].picks[+i];
-    const msg = toggleLeg({home: r.home, away: r.away, iso: r.date, time: r.time}, r.bet, r.odds);
+    const msg = toggleLeg({home: r.home, away: r.away, iso: r.date, time: r.time, sport: r.sport, lines: r.lines}, r.bet, r.est ? null : r.odds);
     renderSuggest();
     return toast(`${msg} · ${parovi(filledLegs().length)}`, () => { setView("ticket"); setPane("ticket"); });
   }
@@ -935,10 +930,9 @@ function renderHistory() {
       <div class="tk-head"><div><b>${fmtDate(t.created)}</b> <span class="sub">· ${parovi(t.legs.length)}</span></div>
         <span class="badge ${t.status}">${ST[t.status][1]}</span></div>
       <ul class="tk-legs">${t.legs.map(l => `<li class="${l.status}"><span class="st">${ST[l.status][0]}</span>
-        <span>${esc(l.home)} – ${esc(l.away)}<br><small>${esc(l.betLabel)}${l.odds ? " · " + num(l.odds) : ""}</small></span>
+        <span>${esc(l.home)} – ${esc(l.away)}<br><small>${esc(l.betLabel)}</small></span>
         <span style="text-align:right">${l.score ? `<b>${l.score}</b>` : `<small>${l.date ? shortDay(l.date) : "čeka"}</small>`}<br><small>${pct(l.p)}</small></span></li>`).join("")}</ul>
       <div class="tk-foot"><span>Šansa <b>${pct(t.p)}</b></span>
-        ${t.odds ? `<span>Kvota <b>${num(t.odds)}</b></span>` : ""}
         ${t.stake ? `<span>Ulog <b>${num(t.stake)} €</b></span>` : ""}
         ${t.stake && t.odds && t.status !== "lost" ? `<span>${t.status === "won" ? "Dobitak" : "Mogući dobitak"} <b>${num(t.stake * t.odds)} €</b></span>` : ""}
         <button class="btn danger sm" style="margin-left:auto" data-tdel="${t.id}">Obriši</button></div>
