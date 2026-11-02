@@ -324,6 +324,7 @@ details[open] summary::after { content: " ‹"; }
 .hero.h-fire .hero-head { background: linear-gradient(160deg, #ff8a00 0%, #e52e00 55%, #7a1200 100%); position: relative; overflow: hidden; }
 .hero.h-fire .hero-head::after { content: "🔥"; position: absolute; right: 14px; top: 8px; font-size: 54px; opacity: .9;
   animation: flicker 1s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+.fire-warn .fire-title { display: block; font-size: 16px; margin-bottom: 4px; letter-spacing: .01em; }
 .fire-warn { background: rgba(255,120,0,.12); color: #b45309; border-radius: 12px; padding: 10px 14px; font-size: 14px; margin: 0 0 14px; line-height: 1.4; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fire-warn { color: #fdba74; } }
 
@@ -1138,7 +1139,7 @@ async function renderGoriona() {
   pickCount = savedCount;
   $("#goriona").innerHTML = `
     <div class="picks-ctrl"><label>Uvjet ${seg}</label></div>
-    <p class="fire-warn">🔥 <b>Visok rizik, visoka kvota.</b> Ovi parovi prolaze rijetko, ${gorMode === "chance" ? "otprilike 1 od 10" : "otprilike 1 od 5 do 1 od 6"} pojedinačno, a sva tri zajedno gotovo nikad. Igraj male uloge, samo za zabavu.</p>
+    <p class="fire-warn"><b class="fire-title">🔥 Visok rizik, visoka kvota – PRAVA PRILIKA ZA KEŠOLOVILO ŽIVOTA!</b>Ovi parovi prolaze rijetko, ${gorMode === "chance" ? "otprilike 1 od 10" : "otprilike 1 od 5 do 1 od 6"} pojedinačno, a sva tri zajedno gotovo nikad. Igraj male uloge, samo za zabavu.</p>
     <div class="picks-grid" style="grid-template-columns:minmax(0,640px)">${hero}</div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Iz svih sportova (⚽ 🏀 🏒 🎾) u idućih 7 dana uzimaju se oklade s kvotom ${gorMode === "chance" ? "kojoj je šansa najviše 10 %" : "5 ili više"}, a od njih 3 s najvećom šansom.
