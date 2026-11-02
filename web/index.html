@@ -634,6 +634,8 @@ function renderSummary(t) {
 // 10 najčešćih nogometnih oklada (drugi član: ključ kvote u podacima, ako postoji)
 const BTNS = [["1", "1"], ["X", "X"], ["2", "2"], ["1X", null], ["X2", null],
   ["12", null], ["GG", null], ["NG", null], ["3+", "O2.5"], ["0-2", "U2.5"]];
+// natpisi na gumbima: kratice koje nisu svima jasne pišemo punim riječima
+const BTN_LABEL = {GG: "oba daju gol", NG: "barem jedan ne da gol", "3+": "3+ gola", "0-2": "0-2 gola"};
 const legFor = (home, away, sp = "nog") => legs.find(l => l.home === home && l.away === away && (l.sport || "nog") === sp);
 const leagueOf = code => INIT.leagues.find(l => l.code === code);
 const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter);
@@ -691,7 +693,7 @@ function renderSide() {
         <div class="fx-odds">${BTNS.map(([bet, key]) => {
           const pr = Engine.fixtureProbs(f)[bet], on = leg && leg.bet === bet;
           return `<button class="ob ${on ? "on" : ""}" data-fx="${i}" data-b="${bet}" ${pr ? "" : "disabled"} aria-pressed="${on}" aria-label="${esc(bet)} šansa ${pct(pr)}">
-            <span>${bet}</span><b>${pr ? pct(pr) : "–"}</b></button>`;
+            <span>${BTN_LABEL[bet] || bet}</span><b>${pr ? pct(pr) : "–"}</b></button>`;
         }).join("")}</div></div>`;
     }).join("");
   }).join("");

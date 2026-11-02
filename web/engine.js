@@ -11,12 +11,12 @@ const Engine = (() => {
   const BET_LABELS = {
     "1": "1 (pobjeda domaćina)", "X": "X (neriješeno)", "2": "2 (pobjeda gosta)",
     "1X": "1X", "X2": "X2", "12": "12",
-    "GG": "GG (oba daju gol)", "NG": "NG (barem jedan ne daje)", "GG3+": "GG i 3+ golova",
+    "GG": "Oba tima daju gol", "NG": "Barem jedan tim ne daje gol", "GG3+": "Oba tima daju gol i 3+ golova",
     "0-1": "0-1 gol", "0-2": "0-2 gola", "2+": "2+ gola", "2-3": "2-3 gola", "3+": "3+ gola",
     "4+": "4+ gola", "5+": "5+ golova", "2-4": "2-4 gola",
     "O1.5": "Više od 1.5", "U1.5": "Manje od 1.5", "O2.5": "Više od 2.5", "U2.5": "Manje od 2.5",
     "O3.5": "Više od 3.5", "U3.5": "Manje od 3.5",
-    "1&GG": "1 i GG", "2&GG": "2 i GG",
+    "1&GG": "1 i oba tima daju gol", "2&GG": "2 i oba tima daju gol",
     "D2+": "Domaćin 2+ golova", "G2+": "Gost 2+ golova",
     "D0": "Domaćin ne zabija", "G0": "Gost ne zabija",
   };
