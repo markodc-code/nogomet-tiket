@@ -1,0 +1,446 @@
+{
+ "season": "2526",
+ "made": "2026-11-02",
+ "leagues": {
+  "E0": {
+   "n": 380,
+   "logLossModel": 1.03,
+   "logLossMarket": 1.0153,
+   "logLossByWeight": {
+    "0.0": 1.03,
+    "0.2": 1.025,
+    "0.4": 1.021,
+    "0.6": 1.0182,
+    "0.8": 1.0164,
+    "1.0": 1.0157
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0157,
+   "hitModel": 0.4632,
+   "hitMarket": 0.4947,
+   "hitBest": 0.4947,
+   "logLossOUBest": 0.6874,
+   "logLossOUMarket": 0.6873
+  },
+  "E1": {
+   "n": 552,
+   "logLossModel": 1.0641,
+   "logLossMarket": 1.0412,
+   "logLossByWeight": {
+    "0.0": 1.0641,
+    "0.2": 1.0577,
+    "0.4": 1.0523,
+    "0.6": 1.0478,
+    "0.8": 1.0442,
+    "1.0": 1.0415
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0415,
+   "hitModel": 0.4457,
+   "hitMarket": 0.4638,
+   "hitBest": 0.462,
+   "logLossOUBest": 0.6905,
+   "logLossOUMarket": 0.6902
+  },
+  "E2": {
+   "n": 552,
+   "logLossModel": 1.0456,
+   "logLossMarket": 1.0205,
+   "logLossByWeight": {
+    "0.0": 1.0456,
+    "0.2": 1.0386,
+    "0.4": 1.0328,
+    "0.6": 1.0283,
+    "0.8": 1.0253,
+    "1.0": 1.0236
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0236,
+   "hitModel": 0.4746,
+   "hitMarket": 0.5072,
+   "hitBest": 0.5072,
+   "logLossOUBest": 0.6854,
+   "logLossOUMarket": 0.6852
+  },
+  "E3": {
+   "n": 552,
+   "logLossModel": 1.045,
+   "logLossMarket": 1.0241,
+   "logLossByWeight": {
+    "0.0": 1.045,
+    "0.2": 1.0386,
+    "0.4": 1.0332,
+    "0.6": 1.029,
+    "0.8": 1.0258,
+    "1.0": 1.0238
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0238,
+   "hitModel": 0.4891,
+   "hitMarket": 0.5054,
+   "hitBest": 0.5054,
+   "logLossOUBest": 0.6903,
+   "logLossOUMarket": 0.6903
+  },
+  "EC": {
+   "n": 540,
+   "logLossModel": 0.996,
+   "logLossMarket": 0.986,
+   "logLossByWeight": {
+    "0.0": 0.996,
+    "0.2": 0.9926,
+    "0.4": 0.9899,
+    "0.6": 0.988,
+    "0.8": 0.987,
+    "1.0": 0.9869
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9869,
+   "hitModel": 0.5093,
+   "hitMarket": 0.5352,
+   "hitBest": 0.5352,
+   "logLossOUBest": 0.6735,
+   "logLossOUMarket": 0.6735
+  },
+  "SP1": {
+   "n": 380,
+   "logLossModel": 0.9808,
+   "logLossMarket": 0.9641,
+   "logLossByWeight": {
+    "0.0": 0.9808,
+    "0.2": 0.9765,
+    "0.4": 0.9728,
+    "0.6": 0.9699,
+    "0.8": 0.9677,
+    "1.0": 0.9662
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9662,
+   "hitModel": 0.5342,
+   "hitMarket": 0.5447,
+   "hitBest": 0.5447,
+   "logLossOUBest": 0.6756,
+   "logLossOUMarket": 0.6756
+  },
+  "SP2": {
+   "n": 462,
+   "logLossModel": 1.058,
+   "logLossMarket": 1.0314,
+   "logLossByWeight": {
+    "0.0": 1.058,
+    "0.2": 1.0503,
+    "0.4": 1.0437,
+    "0.6": 1.0383,
+    "0.8": 1.034,
+    "1.0": 1.0308
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0308,
+   "hitModel": 0.4545,
+   "hitMarket": 0.4935,
+   "hitBest": 0.4913,
+   "logLossOUBest": 0.6785,
+   "logLossOUMarket": 0.6782
+  },
+  "I1": {
+   "n": 380,
+   "logLossModel": 0.9987,
+   "logLossMarket": 0.9802,
+   "logLossByWeight": {
+    "0.0": 0.9987,
+    "0.2": 0.9932,
+    "0.4": 0.9888,
+    "0.6": 0.9853,
+    "0.8": 0.9828,
+    "1.0": 0.9813
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9813,
+   "hitModel": 0.5237,
+   "hitMarket": 0.5421,
+   "hitBest": 0.5395,
+   "logLossOUBest": 0.6976,
+   "logLossOUMarket": 0.6976
+  },
+  "I2": {
+   "n": 380,
+   "logLossModel": 1.0279,
+   "logLossMarket": 1.0168,
+   "logLossByWeight": {
+    "0.0": 1.0279,
+    "0.2": 1.0233,
+    "0.4": 1.0198,
+    "0.6": 1.0175,
+    "0.8": 1.0164,
+    "1.0": 1.0165
+   },
+   "bestWeight": 0.8,
+   "logLossBest": 1.0164,
+   "hitModel": 0.4605,
+   "hitMarket": 0.4763,
+   "hitBest": 0.4842,
+   "logLossOUBest": 0.6872,
+   "logLossOUMarket": 0.6853
+  },
+  "D1": {
+   "n": 306,
+   "logLossModel": 0.9797,
+   "logLossMarket": 0.9533,
+   "logLossByWeight": {
+    "0.0": 0.9797,
+    "0.2": 0.9729,
+    "0.4": 0.9669,
+    "0.6": 0.9617,
+    "0.8": 0.9573,
+    "1.0": 0.9537
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9537,
+   "hitModel": 0.5425,
+   "hitMarket": 0.549,
+   "hitBest": 0.549,
+   "logLossOUBest": 0.6394,
+   "logLossOUMarket": 0.6394
+  },
+  "D2": {
+   "n": 306,
+   "logLossModel": 1.0567,
+   "logLossMarket": 1.0303,
+   "logLossByWeight": {
+    "0.0": 1.0567,
+    "0.2": 1.0495,
+    "0.4": 1.0434,
+    "0.6": 1.0384,
+    "0.8": 1.0344,
+    "1.0": 1.0316
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0316,
+   "hitModel": 0.4346,
+   "hitMarket": 0.5033,
+   "hitBest": 0.5033,
+   "logLossOUBest": 0.6823,
+   "logLossOUMarket": 0.6821
+  },
+  "F1": {
+   "n": 306,
+   "logLossModel": 1.0061,
+   "logLossMarket": 0.9732,
+   "logLossByWeight": {
+    "0.0": 1.0061,
+    "0.2": 0.998,
+    "0.4": 0.9909,
+    "0.6": 0.9848,
+    "0.8": 0.9798,
+    "1.0": 0.9756
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9756,
+   "hitModel": 0.5196,
+   "hitMarket": 0.5425,
+   "hitBest": 0.5392,
+   "logLossOUBest": 0.6722,
+   "logLossOUMarket": 0.6726
+  },
+  "F2": {
+   "n": 305,
+   "logLossModel": 1.0846,
+   "logLossMarket": 1.0598,
+   "logLossByWeight": {
+    "0.0": 1.0846,
+    "0.2": 1.0792,
+    "0.4": 1.0748,
+    "0.6": 1.0715,
+    "0.8": 1.0692,
+    "1.0": 1.068
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.068,
+   "hitModel": 0.4361,
+   "hitMarket": 0.423,
+   "hitBest": 0.423,
+   "logLossOUBest": 0.68,
+   "logLossOUMarket": 0.6801
+  },
+  "N1": {
+   "n": 306,
+   "logLossModel": 0.9876,
+   "logLossMarket": 0.9746,
+   "logLossByWeight": {
+    "0.0": 0.9876,
+    "0.2": 0.9843,
+    "0.4": 0.9818,
+    "0.6": 0.9801,
+    "0.8": 0.9792,
+    "1.0": 0.9792
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9792,
+   "hitModel": 0.5163,
+   "hitMarket": 0.5392,
+   "hitBest": 0.5392,
+   "logLossOUBest": 0.6529,
+   "logLossOUMarket": 0.6529
+  },
+  "P1": {
+   "n": 306,
+   "logLossModel": 0.9313,
+   "logLossMarket": 0.9146,
+   "logLossByWeight": {
+    "0.0": 0.9313,
+    "0.2": 0.9269,
+    "0.4": 0.9235,
+    "0.6": 0.9209,
+    "0.8": 0.9193,
+    "1.0": 0.9186
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9186,
+   "hitModel": 0.5752,
+   "hitMarket": 0.5686,
+   "hitBest": 0.5719,
+   "logLossOUBest": 0.6781,
+   "logLossOUMarket": 0.6777
+  },
+  "B1": {
+   "n": 311,
+   "logLossModel": 1.032,
+   "logLossMarket": 1.0189,
+   "logLossByWeight": {
+    "0.0": 1.032,
+    "0.2": 1.0276,
+    "0.4": 1.024,
+    "0.6": 1.0213,
+    "0.8": 1.0195,
+    "1.0": 1.0187
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0187,
+   "hitModel": 0.4437,
+   "hitMarket": 0.4662,
+   "hitBest": 0.4662,
+   "logLossOUBest": 0.6931,
+   "logLossOUMarket": 0.693
+  },
+  "T1": {
+   "n": 306,
+   "logLossModel": 0.9908,
+   "logLossMarket": 0.9695,
+   "logLossByWeight": {
+    "0.0": 0.9908,
+    "0.2": 0.9842,
+    "0.4": 0.9784,
+    "0.6": 0.9735,
+    "0.8": 0.9694,
+    "1.0": 0.9662
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9662,
+   "hitModel": 0.5131,
+   "hitMarket": 0.5425,
+   "hitBest": 0.5458,
+   "logLossOUBest": 0.669,
+   "logLossOUMarket": 0.6692
+  },
+  "G1": {
+   "n": 236,
+   "logLossModel": 0.9652,
+   "logLossMarket": 0.9512,
+   "logLossByWeight": {
+    "0.0": 0.9652,
+    "0.2": 0.9602,
+    "0.4": 0.9564,
+    "0.6": 0.9539,
+    "0.8": 0.9526,
+    "1.0": 0.9527
+   },
+   "bestWeight": 0.8,
+   "logLossBest": 0.9526,
+   "hitModel": 0.5254,
+   "hitMarket": 0.5127,
+   "hitBest": 0.5169,
+   "logLossOUBest": 0.6835,
+   "logLossOUMarket": 0.6868
+  },
+  "SC0": {
+   "n": 228,
+   "logLossModel": 0.9879,
+   "logLossMarket": 0.9726,
+   "logLossByWeight": {
+    "0.0": 0.9879,
+    "0.2": 0.9843,
+    "0.4": 0.9815,
+    "0.6": 0.9793,
+    "0.8": 0.9778,
+    "1.0": 0.9771
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 0.9771,
+   "hitModel": 0.5351,
+   "hitMarket": 0.5175,
+   "hitBest": 0.5175,
+   "logLossOUBest": 0.6854,
+   "logLossOUMarket": 0.6854
+  },
+  "SC1": {
+   "n": 180,
+   "logLossModel": 1.0825,
+   "logLossMarket": 1.0713,
+   "logLossByWeight": {
+    "0.0": 1.0825,
+    "0.2": 1.0776,
+    "0.4": 1.0737,
+    "0.6": 1.071,
+    "0.8": 1.0694,
+    "1.0": 1.0689
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0689,
+   "hitModel": 0.4278,
+   "hitMarket": 0.4222,
+   "hitBest": 0.4222,
+   "logLossOUBest": 0.6879,
+   "logLossOUMarket": 0.6878
+  },
+  "SC2": {
+   "n": 180,
+   "logLossModel": 1.0639,
+   "logLossMarket": 1.0247,
+   "logLossByWeight": {
+    "0.0": 1.0639,
+    "0.2": 1.0511,
+    "0.4": 1.0408,
+    "0.6": 1.033,
+    "0.8": 1.0278,
+    "1.0": 1.025
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.025,
+   "hitModel": 0.4833,
+   "hitMarket": 0.4778,
+   "hitBest": 0.4778,
+   "logLossOUBest": 0.6909,
+   "logLossOUMarket": 0.6907
+  },
+  "SC3": {
+   "n": 180,
+   "logLossModel": 1.1038,
+   "logLossMarket": 1.0573,
+   "logLossByWeight": {
+    "0.0": 1.1038,
+    "0.2": 1.0914,
+    "0.4": 1.0807,
+    "0.6": 1.0719,
+    "0.8": 1.0648,
+    "1.0": 1.0594
+   },
+   "bestWeight": 1.0,
+   "logLossBest": 1.0594,
+   "hitModel": 0.4,
+   "hitMarket": 0.4556,
+   "hitBest": 0.4556,
+   "logLossOUBest": 0.679,
+   "logLossOUMarket": 0.679
+  }
+ }
+}

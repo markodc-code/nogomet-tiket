@@ -1,4 +1,4 @@
-"""Skidanje podataka i statistički model (Dixon-Coles) za ligu peticu."""
+"""Skidanje podataka i statistički model (Dixon-Coles) za europske lige."""
 import csv
 import datetime as dt
 import difflib
@@ -9,14 +9,35 @@ import time
 import unicodedata
 import urllib.request
 
-LEAGUES = {
-    "E0": "Premier League",
-    "SP1": "La Liga",
-    "I1": "Serie A",
-    "D1": "Bundesliga",
-    "F1": "Ligue 1",
+# kod: (naziv, oznaka, država, liga iznad)
+LEAGUE_INFO = {
+    "E0": ("Premier League", "ENG", "Engleska", None),
+    "E1": ("Championship", "ENG", "Engleska", "E0"),
+    "E2": ("League One", "ENG", "Engleska", "E1"),
+    "E3": ("League Two", "ENG", "Engleska", "E2"),
+    "EC": ("National League", "ENG", "Engleska", "E3"),
+    "SP1": ("La Liga", "ESP", "Španjolska", None),
+    "SP2": ("Segunda División", "ESP", "Španjolska", "SP1"),
+    "I1": ("Serie A", "ITA", "Italija", None),
+    "I2": ("Serie B", "ITA", "Italija", "I1"),
+    "D1": ("Bundesliga", "GER", "Njemačka", None),
+    "D2": ("2. Bundesliga", "GER", "Njemačka", "D1"),
+    "F1": ("Ligue 1", "FRA", "Francuska", None),
+    "F2": ("Ligue 2", "FRA", "Francuska", "F1"),
+    "N1": ("Eredivisie", "NED", "Nizozemska", None),
+    "P1": ("Primeira Liga", "POR", "Portugal", None),
+    "B1": ("Pro League", "BEL", "Belgija", None),
+    "T1": ("Süper Lig", "TUR", "Turska", None),
+    "G1": ("Super League", "GRE", "Grčka", None),
+    "SC0": ("Premiership", "SCO", "Škotska", None),
+    "SC1": ("Championship", "SCO", "Škotska", "SC0"),
+    "SC2": ("League One", "SCO", "Škotska", "SC1"),
+    "SC3": ("League Two", "SCO", "Škotska", "SC2"),
 }
-LEAGUE_FLAGS = {"E0": "ENG", "SP1": "ESP", "I1": "ITA", "D1": "GER", "F1": "FRA"}
+LEAGUES = {c: v[0] for c, v in LEAGUE_INFO.items()}
+LEAGUE_FLAGS = {c: v[1] for c, v in LEAGUE_INFO.items()}
+LEAGUE_COUNTRY = {c: v[2] for c, v in LEAGUE_INFO.items()}
+TOP5 = ("E0", "SP1", "I1", "D1", "F1")
 
 BASE = "https://www.football-data.co.uk"
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "podaci")
@@ -112,8 +133,8 @@ def _num(s):
         return None
 
 
-def load_all(force=False):
-    seasons = season_codes()
+def load_all(force=False, count=3):
+    seasons = season_codes(count=count)
     leagues = {}
     for code in LEAGUES:
         per_season = []
@@ -162,22 +183,36 @@ def _tau(x, y, lh, la, rho):
     return 1.0
 
 
+PRIOR_DOWN = (0.25, 0.20)   # ispala iz lige iznad: jača od prosjeka
+PRIOR_UP = (-0.25, -0.20)   # došla iz niže lige: slabija od prosjeka
+
+
 class LeagueModel:
-    def __init__(self, code, per_season, today=None):
+    def __init__(self, code, per_season, today=None, upper_last_teams=None, season_teams=None):
+        """per_season: liste utakmica, najnovija sezona prva.
+        upper_last_teams: momčadi koje su prošle sezone igrale ligu iznad.
+        season_teams: sastav lige ove sezone (za provjeru prije prvog kola)."""
         self.code = code
         today = today or dt.date.today()
-        matches = [m for s in per_season for m in s]
+        if season_teams is None:
+            s0 = per_season[0] if per_season else []
+            season_teams = {m[1] for m in s0} | {m[2] for m in s0}
+        matches = [m for s in per_season for m in s if m[0] <= today]
+        per_season = [[m for m in s if m[0] <= today] for s in per_season]
         self.n_matches = len(matches)
         current = per_season[0] if per_season else []
         current_teams = {m[1] for m in current} | {m[2] for m in current}
         last_season = per_season[1] if len(per_season) > 1 else []
         last_teams = {m[1] for m in last_season} | {m[2] for m in last_season}
-        self.teams = sorted(current_teams) if current_teams else sorted(
+        self.teams = sorted(season_teams or current_teams) or sorted(
             {m[1] for m in matches} | {m[2] for m in matches})
-        all_teams = sorted({m[1] for m in matches} | {m[2] for m in matches})
+        all_teams = sorted({m[1] for m in matches} | {m[2] for m in matches} | set(self.teams))
 
-        # Novopridošle momčadi (nisu bile u ligi prošle sezone) startaju kao slabije od prosjeka
-        prior = {t: ((-0.25, -0.20) if last_teams and t not in last_teams else (0.0, 0.0))
+        # Novopridošle momčadi (nisu bile u ligi prošle sezone): ispale odozgo startaju
+        # kao jače od prosjeka, a promovirane odozdo kao slabije.
+        upper = upper_last_teams or set()
+        prior = {t: ((0.0, 0.0) if not last_teams or t in last_teams
+                     else PRIOR_DOWN if t in upper else PRIOR_UP)
                  for t in all_teams}
         w = [0.5 ** (max((today - m[0]).days, 0) / HALF_LIFE_DAYS) for m in matches]
         self._fit(matches, w, all_teams, prior)
@@ -267,6 +302,20 @@ class LeagueModel:
         return matrix(lh, la, self.rho), lh, la
 
 
+def build_models(leagues, today=None, offset=0, season_teams=None, codes=None):
+    """Modeli za sve lige. offset=1 znači 'kao da je prošla sezona tekuća' (za provjeru)."""
+    out = {}
+    for c in codes or leagues:
+        seasons = leagues[c][offset:]
+        up = LEAGUE_INFO[c][3]
+        upper_last = set()
+        if up and up in leagues and len(leagues[up]) > offset + 1:
+            upper_last = {t for m in leagues[up][offset + 1] for t in (m[1], m[2])}
+        out[c] = LeagueModel(c, seasons, today, upper_last,
+                             season_teams.get(c) if season_teams else None)
+    return out
+
+
 def matrix(lh, la, rho):
     ph = [math.exp(-lh) * lh ** k / math.factorial(k) for k in range(MAX_GOALS + 1)]
     pa = [math.exp(-la) * la ** k / math.factorial(k) for k in range(MAX_GOALS + 1)]
@@ -276,7 +325,9 @@ def matrix(lh, la, rho):
     return [[v / s for v in row] for row in m]
 
 
-MARKET_WEIGHT = 0.6  # koliko vjerujemo kladionicama naspram čistog modela
+# Koliko vjerujemo kladionicama naspram čistog modela. Po ligi se uzima vrijednost
+# iz tocnost.json (provjera na prošloj sezoni); ovo je zadana vrijednost.
+MARKET_WEIGHT = 0.9
 
 
 def market_lambdas(mk, lh0, la0, rho):

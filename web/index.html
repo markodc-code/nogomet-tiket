@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nogometni tiket</title>
-<meta name="description" content="Šansa da tvoj nogometni tiket prođe, iz statistike lige petice.">
+<meta name="description" content="Šansa da tvoj nogometni tiket prođe, iz statistike 22 europske lige.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -117,6 +117,8 @@ summary { cursor: pointer; color: var(--muted); }
 .lgf { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .lgf button { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
 .lgf button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.lgsel { width: 100%; background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+.minodds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 12px; font-size: 13.5px; }
 .fxlist { max-height: 72vh; overflow: auto; margin: 0 -6px; padding: 0 6px; }
 .day { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 4px; }
 .fx { padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -199,7 +201,7 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
         <button class="btn primary" id="saveTicket">Spremi i prati tiket</button>
         <span id="savemsg" class="sub"></span>
       </div>
-      <p class="foot">Šansa se računa iz rezultata zadnje tri sezone (novije utakmice vrijede više). Kad za utakmicu postoje kvote kladionica, procjena se kombinira s njima. Ovo je procjena, ne garancija. Ozljede, rotacije i motivaciju model ne vidi.</p>
+      <p class="foot">Kad za utakmicu postoje kvote, šansa se oslanja na njih (provjera na prošloj sezoni pokazala je da su točnije od samog modela). Model iz rezultata zadnje tri sezone iz njih izvodi i ostale oklade (GG, golovi, točan rezultat), a bez kvota računa sam. Ovo je procjena, ne garancija.</p>
     </section>
 
     <aside class="card">
@@ -309,6 +311,7 @@ function legHTML(r) {
   const chips = [`<span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>`];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
   if (r.source !== "model") chips.push(`<span class="chip">Samo model <b>${pct(r.pModel)}</b></span>`);
+  else chips.push(`<span class="chip bad" title="Za ovu utakmicu još nema kvota, pa je procjena samo iz rezultata">Bez kvota: manje pouzdano</span>`);
   if (r.value != null) chips.push(r.value >= 0
     ? `<span class="chip good">Kvota je dobra: +${num(r.value * 100, 0)} % vrijednosti</span>`
     : `<span class="chip bad">Kvota je preniska: ${num(r.value * 100, 0)} %</span>`);
@@ -324,6 +327,7 @@ function legHTML(r) {
         <div><h4>Najvjerojatniji rezultati</h4>${r.scores.map(([p, s]) => `${s} <b>${pct(p)}</b>`).join(" · ")}</div>
         <div><h4>Domaćin</h4>${team(r.homeRow, r.home)}</div>
         <div><h4>Gost</h4>${team(r.awayRow, r.away)}</div>
+        ${r.accuracy ? `<div><h4>Pouzdanost (${esc(r.leagueName)})</h4>Na prošloj sezoni pogođen ishod 1X2: model <b>${pct(r.accuracy.hitModel)}</b>, kladionice <b>${pct(r.accuracy.hitMarket)}</b>, kombinacija <b>${pct(r.accuracy.hitBest)}</b> (${r.accuracy.n} utakmica)</div>` : ""}
       </div>
     </details>`;
 }
@@ -374,18 +378,23 @@ function renderSummary(t) {
 function renderSide() {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
   const lgs = INIT.leagues;
-  if (side === "tb" && lgFilter === "all") lgFilter = lgs[0].code;
-  $("#lgf").innerHTML = (side === "fx" ? [`<button data-lg="all" class="${lgFilter === "all" ? "on" : ""}">Sve</button>`] : [])
-    .concat(lgs.map(l => `<button data-lg="${l.code}" class="${lgFilter === l.code ? "on" : ""}">${esc(l.name)}</button>`)).join("");
+  if (side === "tb" && !lgs.some(l => l.code === lgFilter)) lgFilter = lgs[0].code;
+  if (!["all", "top5"].includes(lgFilter) && !lgs.some(l => l.code === lgFilter)) lgFilter = "all";
+  const countries = [...new Set(lgs.map(l => l.country))];
+  const opt = (v, t) => `<option value="${v}" ${lgFilter === v ? "selected" : ""}>${esc(t)}</option>`;
+  $("#lgf").innerHTML = `<select id="lgsel" class="lgsel">
+    ${side === "fx" ? opt("all", "Sve lige") + opt("top5", "Liga petica") : ""}
+    ${countries.map(c => `<optgroup label="${esc(c)}">${lgs.filter(l => l.country === c).map(l => opt(l.code, l.name)).join("")}</optgroup>`).join("")}
+  </select>`;
   if (side === "fx") {
-    const fx = INIT.fixtures.filter(f => lgFilter === "all" || f.league === lgFilter);
+    const fx = INIT.fixtures.filter(f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter));
     if (!fx.length) { $("#side").innerHTML = `<div class="empty">Trenutno nema objavljenih kvota za ovu ligu. Upiši par ručno.</div>`; return; }
     let html = "", day = "";
     fx.forEach((f, i) => {
       if (f.iso !== day) { day = f.iso; html += `<div class="day">${new Date(f.iso).toLocaleDateString("hr-HR", {weekday: "long", day: "numeric", month: "long"})}</div>`; }
       const lg = lgs.find(l => l.code === f.league);
       const ob = k => `<button data-fx="${INIT.fixtures.indexOf(f)}" data-b="${k}" title="Dodaj na tiket"><span>${k}</span><b>${f.odds[k] ? num(f.odds[k]) : "–"}</b></button>`;
-      html += `<div class="fx"><div class="fx-teams"><span>${esc(f.home)} – ${esc(f.away)}</span><small>${esc(f.time)} · ${lg.flag}</small></div>
+      html += `<div class="fx"><div class="fx-teams"><span>${esc(f.home)} – ${esc(f.away)}</span><small>${esc(f.time)} · ${lg.flag} ${esc(lg.name)}</small></div>
         <div class="fx-odds">${ob("1")}${ob("X")}${ob("2")}</div></div>`;
     });
     $("#side").innerHTML = html;
@@ -396,7 +405,7 @@ function renderSide() {
   }
 }
 document.querySelector(".tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; side = b.dataset.tab; store.set("nt-side", side); renderSide(); };
-$("#lgf").onclick = e => { const b = e.target.closest("button"); if (!b) return; lgFilter = b.dataset.lg; store.set("nt-lg", lgFilter); renderSide(); };
+$("#lgf").onchange = e => { if (e.target.id !== "lgsel") return; lgFilter = e.target.value; store.set("nt-lg", lgFilter); renderSide(); };
 $("#side").onclick = e => {
   const b = e.target.closest("[data-fx]"); if (!b) return;
   const f = INIT.fixtures[+b.dataset.fx], bet = b.dataset.b, odds = f.odds[bet] ? String(f.odds[bet]).replace(".", ",") : "";
@@ -420,13 +429,15 @@ function setView(v) {
 }
 
 /* prijedlozi dana */
-let SUG = null;
+let SUG = null, minOdds = store.get("nt-minodds", 1.5);
 const dayLabel = iso => new Date(iso).toLocaleDateString("hr-HR", {weekday: "short", day: "numeric", month: "numeric"});
 async function renderSuggest() {
-  SUG = await api("/api/suggestions");
+  SUG = await api("/api/suggestions", {minOdds});
   const el = $("#suggest");
+  const picker = `<div class="minodds lgf">Kvota barem: ${[1.3, 1.5, 1.8, 2.0, 2.5].map(o =>
+    `<button data-min="${o}" class="${o === minOdds ? "on" : ""}">${num(o)}</button>`).join("")}</div>`;
   if (!SUG.picks.length) {
-    el.innerHTML = `<div class="card empty">Trenutno nema dovoljno objavljenih kvota za prijedloge. Kvote se objavljuju par dana prije utakmica, pa svrati sutra.</div>`;
+    el.innerHTML = `<div class="card"><h2>Prijedlozi dana</h2>${picker}<div class="empty">Trenutno nema dovoljno objavljenih kvota za prijedloge. Kvote se objavljuju par dana prije utakmica, pa svrati sutra.</div></div>`;
     return;
   }
   const t = SUG.total;
@@ -439,13 +450,12 @@ async function renderSuggest() {
       <div class="chips"><span class="chip">Oklada <b>${esc(r.betLabel)}</b></span>
         <span class="chip">Kvota <b>${num(r.odds)}</b></span>
         <span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>
-        ${r.pMarket != null ? `<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>` : ""}
-        <span class="chip ${r.ev >= 0 ? "good" : ""}">Očekivani povrat <b>${r.ev >= 0 ? "+" : ""}${num(r.ev * 100, 1)} %</b></span></div>
+        <span class="chip">${esc(r.flag)} ${esc(r.leagueName)}</span></div>
     </div>`).join("");
   el.innerHTML = `<div class="hgrid">
     <div class="card"><h2>Prijedlozi dana</h2>
       <p class="sub" style="margin-top:-6px">Utakmice ${SUG.from === SUG.to ? dayLabel(SUG.from) : dayLabel(SUG.from) + " – " + dayLabel(SUG.to)} · pregledano ${SUG.considered} utakmica</p>
-      ${cards}</div>
+      ${picker}${cards}</div>
     <div>
       <div class="summary" style="margin-top:0"><div class="lbl">Svih ${SUG.picks.length} na jednom tiketu</div>
         <div class="big">${pct(t.p)}</div>
@@ -455,10 +465,11 @@ async function renderSuggest() {
         <div class="backup"><button class="btn primary" id="sugAll">Dodaj svih ${SUG.picks.length} na tiket</button></div>
       </div>
       <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
-        <p class="sub" style="margin:0">Visoka kvota i velika šansa uvijek idu jedna protiv druge, jer kvota je cijena šanse. Zato biramo oklade s najboljim omjerom:
-        gdje je naša procjena šanse najviše iznad onoga što kvota plaća, a šansa je barem 45 %. Iz svake utakmice uzima se najviše jedna oklada.
-        Kvote su prosjek kladionica; u tvojoj kladionici mogu biti malo drukčije. Prijedlozi se mijenjaju svaki put kad se osvježe podaci.</p>
-        <p class="sub">Ako je očekivani povrat negativan, kladionica je i dalje u prednosti; to su samo „najmanje loše“ oklade.</p></div>
+        <p class="sub" style="margin:0">Odabereš najmanju kvotu koja te zanima, a aplikacija iz svake utakmice uzme okladu s najvećom šansom
+        (1, X, 2, 3+ ili 0-2 gola) i pokaže 5 najsigurnijih. Viša kvota znači manju šansu, jer kvota je cijena šanse.</p>
+        <p class="sub">Provjera na prošloj sezoni (22 lige): kvote kladionica bile su točnije od samog modela, pa se šanse ovdje oslanjaju na kvote.
+        Nijedan način biranja nije dugoročno pobijedio kladionice: one uzimaju oko 5 % marže. Prijedlozi su najvjerojatnije oklade, a ne zajamčena zarada.</p>
+        <p class="sub">Kvote su prosjek kladionica; u tvojoj mogu biti malo drukčije. Ako je tvoja kvota viša od prosjeka, to ti ide u korist.</p></div>
     </div></div>`;
 }
 function addLegs(rs, replace) {
@@ -472,6 +483,8 @@ function addLegs(rs, replace) {
   renderLegs(); schedule(0); setView("ticket");
 }
 $("#suggest").onclick = e => {
+  const m = e.target.closest("[data-min]");
+  if (m) { minOdds = +m.dataset.min; store.set("nt-minodds", minOdds); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");
   if (b) return addLegs([SUG.picks[+b.dataset.sug]]);
   if (e.target.id === "sugAll") addLegs(SUG.picks);
@@ -562,7 +575,7 @@ function applyInit(d) {
   $("#teams").innerHTML = d.leagues.flatMap(l => l.teams.map(t => `<option value="${esc(t)}">${esc(l.name)}</option>`)).join("");
   const last = d.lastResult ? new Date(d.lastResult).toLocaleDateString("hr-HR") : "?";
   const upd = d.builtAt ? new Date(d.builtAt).toLocaleString("hr-HR", {day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit"}) : "?";
-  $("#sub").textContent = `Liga petica · rezultati do ${last} · ${d.fixtures.length} nadolazećih s kvotama · ažurirano ${upd}`;
+  $("#sub").textContent = `${d.leagues.length} europske lige · rezultati do ${last} · ${d.fixtures.length} nadolazećih s kvotama · ažurirano ${upd}`;
   renderSide();
 }
 

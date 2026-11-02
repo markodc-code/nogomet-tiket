@@ -1,7 +1,7 @@
 {
   "name": "Nogometni tiket",
   "short_name": "Tiket",
-  "description": "Šansa da tvoj nogometni tiket prođe, iz statistike lige petice.",
+  "description": "Šansa da tvoj nogometni tiket prođe, iz statistike 22 europske lige.",
   "lang": "hr",
   "start_url": "./",
   "scope": "./",

@@ -167,7 +167,7 @@ const Engine = (() => {
     if (Object.keys(mk).length) {
       const ml = marketLambdas(mk, mlh, mla, lg.rho);
       if (ml) {
-        const w = D.marketWeight;
+        const w = lg.weight ?? D.marketWeight;
         lh = Math.exp((1 - w) * Math.log(mlh) + w * Math.log(ml[0]));
         la = Math.exp((1 - w) * Math.log(mla) + w * Math.log(ml[1]));
         source = "model+kladionice";
@@ -187,7 +187,7 @@ const Engine = (() => {
     const basic = {}; for (const k of ["1", "X", "2", "GG", "O2.5"]) basic[k] = betProbability(mat, k);
     const B = bet.toUpperCase();
     return {
-      home: h, away: a, league: lg.code, leagueName: lg.name, bet,
+      home: h, away: a, league: lg.code, leagueName: lg.name, flag: lg.flag, accuracy: lg.accuracy, bet,
       betLabel: BET_LABELS[B] || (B.startsWith("R") ? "Točan rezultat " + B.slice(1) : bet),
       p, pModel, pMarket: mk[B] ?? null, source,
       fairOdds: p > 0 ? 1 / p : null, odds, value: odds ? p * odds - 1 : null,
@@ -283,41 +283,44 @@ const Engine = (() => {
   }
 
   // ------------------------------------------------------------ prijedlozi dana
-  // Za svaku nadolazeću utakmicu gleda oklade s kvotama (1, X, 2, 3+, 0-2) i bira
-  // one gdje je naša šansa najviše iznad onoga što kvota plaća (očekivani povrat),
-  // uz minimalnu šansu, najviše jednu okladu po utakmici.
+  // Provjera na prošloj sezoni pokazala je da model ne pobjeđuje kladionice, pa
+  // "model vidi vrijednost" nije dobar kriterij (gubio je ~12 % po okladi).
+  // Zato biramo oklade s najvećom šansom među onima čija je kvota barem minOdds,
+  // najviše jednu po utakmici.
   const MARKETS = [["1", "1"], ["X", "X"], ["2", "2"], ["3+", "O2.5"], ["0-2", "U2.5"]];
-  function suggestions(count = 5, minP = 0.45, days = 3) {
-    if (!D || !D.fixtures.length) return {picks: [], window: null};
+  function suggestions(minOdds = 1.5, count = 5, days = 3) {
+    if (!D || !D.fixtures.length) return {picks: [], minOdds};
     const first = D.fixtures[0].iso;
     const until = new Date(new Date(first).getTime() + (days - 1) * 864e5).toISOString().slice(0, 10);
     let pool = D.fixtures.filter(f => f.iso <= until);
-    if (pool.length < count) pool = D.fixtures;
+    if (pool.length < count * 2) pool = D.fixtures;
     const best = [];
     for (const f of pool) {
       let top = null;
       for (const [bet, key] of MARKETS) {
         const odds = f.odds[key];
-        if (!odds) continue;
+        if (!odds || odds < minOdds) continue;
         const r = evaluateLeg({home: f.home, away: f.away, bet, odds});
-        if (r.error || r.p < minP) continue;
+        if (r.error) continue;
         const cand = {...r, ev: r.p * odds - 1};
-        if (!top || cand.ev > top.ev) top = cand;
+        if (!top || cand.p > top.p) top = cand;
       }
       if (top) best.push(top);
     }
-    best.sort((a, b) => b.ev - a.ev);
+    best.sort((a, b) => b.p - a.p);
     const picks = best.slice(0, count);
     const total = picks.length ? {
       p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1),
     } : null;
     if (total) total.value = total.p * total.odds - 1;
-    return {picks, total, from: pool[0]?.iso, to: pool[pool.length - 1]?.iso, considered: pool.length};
+    return {picks, total, minOdds, from: pool[0]?.iso, to: pool[pool.length - 1]?.iso, considered: pool.length};
   }
 
   function initPayload() {
     return {
-      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, teams: l.teams, table: l.table})),
+      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country,
+        weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
+      top5: D.top5 || [], accuracySeason: D.accuracySeason,
       fixtures: D.fixtures, bets: Object.entries(BET_LABELS).map(([code, label]) => ({code, label})),
       lastResult: D.lastResult, builtAt: D.builtAt, seasons: D.seasons,
     };
@@ -329,7 +332,7 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
-    if (path === "/api/suggestions") return suggestions();
+    if (path === "/api/suggestions") return suggestions(body?.minOdds || 1.5);
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);
