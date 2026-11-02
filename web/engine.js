@@ -459,7 +459,7 @@ const Engine = (() => {
     }
     return out;
   }
-  function pickFrom(pool, minOdds, minP, count) {
+  function pickFrom(pool, minOdds, minP, count) {  // filtrira ili po kvoti ili po šansi (drugo je 0)
     const best = [];
     for (const item of pool) {
       let top = null;
@@ -524,7 +524,9 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
-    if (path === "/api/picks") return picks(body?.minOdds || 1.5, body?.minP || 0.3, body?.count || 5);
+    if (path === "/api/picks") return body?.mode === "chance"
+      ? picks(0, body?.minP || 0.5, body?.count || 5)
+      : picks(body?.minOdds || 1.5, 0, body?.count || 5);
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);

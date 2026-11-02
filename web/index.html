@@ -237,7 +237,7 @@ details[open] summary::after { content: " ‹"; }
 
 /* ---------- prijedlozi ---------- */
 .picks-ctrl { display: grid; gap: 10px; justify-content: start; margin-bottom: 16px; font-size: 14px; color: var(--muted); }
-.picks-ctrl label { display: grid; grid-template-columns: 96px auto; align-items: center; gap: 8px; }
+.picks-ctrl label { display: grid; grid-template-columns: 116px auto; align-items: center; gap: 8px; }
 .picks-ctrl .seg button { white-space: nowrap; }
 @media (max-width: 560px) {
   .picks-ctrl { justify-content: stretch; }
@@ -806,12 +806,14 @@ function setView(v) {
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 /* ---------- prijedlog dana i prijedlog tjedna ---------- */
-let SUG = null, minOdds = store.get("nt-minodds", 1.5), minP = store.get("nt-minp", 0.3), pickCount = store.get("nt-count", 5);
+let SUG = null, minOdds = store.get("nt-minodds", 1.5), minP = store.get("nt-minp", 0.5), pickCount = store.get("nt-count", 5);
+let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
 const SPORT_ICON = {nog: "⚽", kos: "🏀"};
 
+const filterText = () => pickMode === "chance" ? `sa šansom barem ${pct(minP)}` : `s kvotom barem ${num(minOdds)}`;
 function heroHTML(kind, title, when, s) {
   if (!s.picks.length) return `<div class="hero h-${kind}"><div class="hero-head"><h2>${title}</h2><div class="when">${when}</div></div>
-    <div class="none">Nema utakmica s kvotom barem ${num(minOdds)} i šansom barem ${pct(minP)}. Probaj manju kvotu ili manju šansu.</div></div>`;
+    <div class="none">Nema utakmica ${filterText()}. Probaj manju granicu.</div></div>`;
   const t = s.total, short = s.picks.length < pickCount;
   return `<div class="hero h-${kind}">
     <div class="hero-head"><h2>${title}</h2><div class="when">${when} · ${parovi(s.picks.length)} od ${s.considered} utakmica</div>
@@ -827,13 +829,13 @@ function heroHTML(kind, title, when, s) {
       <span class="bet"><span class="chip"><b>${esc(r.betLabel)}</b></span>${r.est ? `<span class="chip bad">bez kvota: samo model</span>` : ""}
         <button class="btn sm add ${on ? "on" : ""}" data-sug="${kind}:${i}">${on ? "✓ Na tiketu" : "+ Na tiket"}</button></span>
     </div>`; }).join("")}
-    <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} s kvotom barem ${num(minOdds)} i šansom barem ${pct(minP)}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
+    <div class="hero-foot"><span class="sub">${short ? `Dostupno je samo ${parovi(s.picks.length)} ${filterText()}. ` : ""}Sigurnije je igrati ih pojedinačno ili po 2–3.</span>
       <button class="btn primary block" data-sugall="${kind}">Stavi svih ${s.picks.length} na tiket</button></div>
   </div>`;
 }
 
 async function renderSuggest() {
-  SUG = await api("/api/picks", {minOdds, minP, count: pickCount});
+  SUG = await api("/api/picks", {mode: pickMode, minOdds, minP, count: pickCount});
   if (!SUG) return;
   const seg = (attr, vals, cur, fmt) => `<span class="seg">${vals.map(v => `<button ${attr}="${v}" class="${v === cur ? "on" : ""}">${fmt(v)}</button>`).join("")}</span>`;
   const d = SUG.day, w = SUG.week;
@@ -842,8 +844,8 @@ async function renderSuggest() {
   $("#suggest").innerHTML = `
     <div class="picks-ctrl">
       <label>Parova ${seg("data-count", [5, 10], pickCount, v => v)}</label>
-      <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], minOdds, v => num(v))}</label>
-      <label>Šansa barem ${seg("data-minp", [0.3, 0.4, 0.5, 0.6, 0.7], minP, v => Math.round(v * 100) + " %")}</label>
+      <label>Kvota barem ${seg("data-min", [1.3, 1.5, 1.8, 2.0, 2.5], pickMode === "odds" ? minOdds : null, v => num(v))}</label>
+      <label>ili šansa barem ${seg("data-minp", [0.3, 0.4, 0.5, 0.6, 0.7], pickMode === "chance" ? minP : null, v => Math.round(v * 100) + " %")}</label>
     </div>
     <div class="picks-grid">
       ${heroHTML("day", "PRIJEDLOG DANA", dayWhen, d)}
@@ -851,8 +853,7 @@ async function renderSuggest() {
     </div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
-      Iz svake utakmice uzima se oklada s najvećom šansom kojoj je kvota barem odabrana i šansa barem odabrana, pa se prikaže ${pickCount} najsigurnijih.
-      Viša kvota znači manju šansu, pa uz visoku kvotu i visoku šansu prijedloga može biti malo ili nimalo.
+      Biraš <b>ili</b> najmanju kvotu <b>ili</b> najmanju šansu (uključen je samo jedan filter). Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
       <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
       <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;
@@ -873,9 +874,9 @@ function addPicks(rs, replace) {
 }
 $("#suggest").onclick = e => {
   const m = e.target.closest("[data-min]");
-  if (m) { minOdds = +m.dataset.min; store.set("nt-minodds", minOdds); return renderSuggest(); }
+  if (m) { minOdds = +m.dataset.min; pickMode = "odds"; store.set("nt-minodds", minOdds); store.set("nt-pickmode", pickMode); return renderSuggest(); }
   const mp = e.target.closest("[data-minp]");
-  if (mp) { minP = +mp.dataset.minp; store.set("nt-minp", minP); return renderSuggest(); }
+  if (mp) { minP = +mp.dataset.minp; pickMode = "chance"; store.set("nt-minp", minP); store.set("nt-pickmode", pickMode); return renderSuggest(); }
   const c = e.target.closest("[data-count]");
   if (c) { pickCount = +c.dataset.count; store.set("nt-count", pickCount); return renderSuggest(); }
   const b = e.target.closest("[data-sug]");

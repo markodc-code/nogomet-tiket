@@ -1,5 +1,5 @@
 // Omogućuje rad bez interneta: stranica iz spremnika, podaci uvijek prvo s mreže.
-const CACHE = "tiket-v10";
+const CACHE = "tiket-v11";
 const SHELL = ["./", "index.html", "engine.js", "manifest.webmanifest", "icon-192.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
