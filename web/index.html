@@ -1166,7 +1166,7 @@ async function renderGoriona() {
   if (!GOR) return;
   const seg = `<span class="seg">${[["odds", "Kvota 5+"], ["chance", "Šansa do 10 %"]].map(([v, t]) =>
     `<button data-gmode="${v}" class="${v === gorMode ? "on" : ""}">${t}</button>`).join("")}</span>`;
-  const when = `${shortDay(GOR.from)} – ${shortDay(GOR.to)} · svi sportovi`;
+  const when = `${GOR.isToday ? "Danas · " + fullDay(GOR.date) : "Danas više nema parova · " + fullDay(GOR.date)} · svi sportovi`;
   const savedCount = pickCount; pickCount = 3;   // heroHTML uspoređuje s odabranim brojem parova
   const hero = heroHTML("fire", "GORIONA PAROVI", when, GOR);
   pickCount = savedCount;
@@ -1175,8 +1175,8 @@ async function renderGoriona() {
     <p class="fire-warn"><b class="fire-title">🔥 Visok rizik, visoka kvota – PRAVA PRILIKA ZA KESOLOVILO ŽIVOTA!</b>Ovi parovi prolaze rijetko, ${gorMode === "chance" ? "otprilike 1 od 10" : "otprilike 1 od 5 do 1 od 6"} pojedinačno, a sva tri zajedno gotovo nikad. Igraj male uloge, samo za zabavu.</p>
     <div class="picks-grid" style="grid-template-columns:minmax(0,640px)">${hero}</div>
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
-      <p class="sub" style="margin:0;font-size:14px">Iz svih sportova (⚽ 🏀 🏒 🎾) u idućih 7 dana uzimaju se oklade s kvotom ${gorMode === "chance" ? "kojoj je šansa najviše 10 %" : "5 ili više"}, a od njih 3 s najvećom šansom.
-      Svaki par je iz drugog sporta i druge vrste oklade kad je moguće, i s drugog dana. Gdje kladionica nema kvotu, kvota je procijenjena (≈).</p></div>`;
+      <p class="sub" style="margin:0;font-size:14px">Iz svih sportova (⚽ 🏀 🏒 🎾) samo za današnje utakmice koje još nisu počele uzimaju se oklade s kvotom ${gorMode === "chance" ? "kojoj je šansa najviše 10 %" : "5 ili više"}, a od njih 3 s najvećom šansom.
+      Svaki par je iz drugog sporta i druge vrste oklade kad je moguće. Ako danas više nema prikladnih parova, uzima se prvi sljedeći dan. Gdje kladionica nema kvotu, kvota je procijenjena (≈).</p></div>`;
 }
 $("#goriona").onclick = e => {
   const m = e.target.closest("[data-gmode]");

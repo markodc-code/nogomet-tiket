@@ -725,17 +725,25 @@ const Engine = (() => {
   // Prijedlog dana: utakmice danas koje još nisu počele (ako danas nema ničega,
   // prvi sljedeći dan s utakmicama). Prijedlog tjedna: od sada idućih 7 dana. Svi sportovi.
   // daySport / weekSport: "all", "nog" ili "kos" - posebno za prijedlog dana i tjedna
-  // Goriona: 3 para s visokom kvotom (5+) ili malom šansom (do 10 %) iz svih sportova, idućih 7 dana.
+  // Goriona: 3 para s visokom kvotom (5+) ili malom šansom (do 10 %) iz svih sportova, samo današnje
+  // utakmice koje još nisu počele (ako danas više nema ničega, prvi sljedeći dan s utakmicama).
   // Unutar tog uvjeta biraju se parovi s najvećom šansom, svaki iz drugog sporta ako je moguće.
   function goriona(mode = "odds", now = new Date()) {
     if (!D) return null;
-    const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
-    const pool = [
+    const today = localIso(now);
+    const open = [
       ...D.fixtures.map(f => ({sport: "nog", f, k: kickoff(f)})),
       ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: BL[f.league].sport || "kos", f, k: new Date(f.utc)})),
-    ].filter(x => x.k > now && localIso(x.k) <= weekEnd).sort((a, b) => a.k - b.k);
-    const r = mode === "chance" ? pickFrom(pool, 0, 0.10, 3, true) : pickFrom(pool, 5, 1, 3, true);
-    return {...r, mode, from: localIso(now), to: weekEnd};
+    ].filter(x => x.k > now).sort((a, b) => a.k - b.k);
+    const pick = pool => mode === "chance" ? pickFrom(pool, 0, 0.10, 3, false) : pickFrom(pool, 5, 1, 3, false);
+    let day = today, r = pick(open.filter(x => localIso(x.k) === today));
+    if (!r.picks.length) {   // danas više nema prikladnih parova: prvi sljedeći dan koji ih ima
+      for (const d of [...new Set(open.map(x => localIso(x.k)))].filter(d => d > today)) {
+        r = pick(open.filter(x => localIso(x.k) === d));
+        if (r.picks.length) { day = d; break; }
+      }
+    }
+    return {...r, mode, date: day, isToday: day === today};
   }
 
   function picks(minOdds = 1.5, maxP = 1, count = 5, daySport = "all", weekSport = "all", now = new Date()) {
