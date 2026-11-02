@@ -32,6 +32,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      # stari rezultati (npr. tenis unatrag 2 godine) pamte se između pokretanja
+      - uses: actions/cache@v4
+        with:
+          path: podaci
+          key: podaci-${{ github.run_id }}
+          restore-keys: podaci-
+
       - name: Skini podatke i izračunaj model
         run: python build_data.py --force
 

@@ -168,7 +168,8 @@ h1 span { color: var(--tint-text); }
 .ob span { white-space: normal; text-align: center; line-height: 1.15; }
 .ob.prob b { font-size: 14px; color: var(--muted); }
 .ob.on.prob b { color: var(--tint-ink); }
-.sports { display: flex; gap: 10px; margin-bottom: 14px; }
+.sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+@media (max-width: 520px) { .sports { grid-template-columns: repeat(2, 1fr); } .sports button { min-height: 46px; font-size: 15px; } }
 .sports button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; border: 0;
   border-radius: 14px; background: var(--fill2); font-weight: 700; font-size: 16.5px; transition: background .15s, transform .1s; }
 .sports button:active { transform: scale(.97); }
@@ -388,6 +389,8 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
         <div class="sports" id="sports" role="tablist" aria-label="Sport">
           <button data-sport="nog" class="on" role="tab"><span>⚽</span>Nogomet</button>
           <button data-sport="kos" role="tab"><span>🏀</span>Košarka</button>
+          <button data-sport="hok" role="tab"><span>🏒</span>Hokej</button>
+          <button data-sport="ten" role="tab"><span>🎾</span>Tenis</button>
         </div>
         <div id="lgf"></div>
         <div class="seg wide" id="sideSeg" style="margin-top:12px">
@@ -498,7 +501,8 @@ const fmtDate = iso => { const d = new Date(iso); return `${d.getDate()}.${d.get
 
 /* ---------- stanje ---------- */
 let INIT = null, side = store.get("nt-side", "fx"), lgFilter = store.get("nt-lg", "all"), selDay = null, view = "suggest";
-let sport = store.get("nt-sport", "nog"), bLeague = store.get("nt-bl", "NBA"), bDay = null;
+let sport = store.get("nt-sport", "nog"), bDay = null;
+const otherLeague = store.get("nt-leagues", {kos: "NBA", hok: "NHL", ten: "ATP"});  // odabrana liga po sportu
 let legs = (store.get("nt-legs", null) || []).filter(l => l && (l.home || l.away));
 let uid = 0; legs.forEach(l => l.id = ++uid);
 let timer = null, reqNo = 0, RES = {};
@@ -514,10 +518,15 @@ function toast(msg, onTap) {
 /* ---------- tiket: parovi ---------- */
 function basketBetOptions(l) {
   const L = l.lines || {spread: -0.5, total: 160.5};
-  const opts = ["1", "2", `H1:${L.spread}`, `H2:${-L.spread}`, `O:${L.total}`, `U:${L.total}`];
-  if (L.home != null) opts.push(`DO:${L.home}`, `DU:${L.home}`, `GO:${L.away}`, `GU:${L.away}`);
+  let opts;
+  if (l.sport === "hok") opts = ["1", "X", "2", "1X", "X2", "12", "1OT", "2OT", `O:${L.total ?? 5.5}`, `U:${L.total ?? 5.5}`];
+  else if (l.sport === "ten") opts = tennisBets(L.bo || 3).map(x => x[0]);
+  else {
+    opts = ["1", "2", `H1:${L.spread}`, `H2:${-L.spread}`, `O:${L.total}`, `U:${L.total}`];
+    if (L.home != null) opts.push(`DO:${L.home}`, `DU:${L.home}`, `GO:${L.away}`, `GU:${L.away}`);
+  }
   if (!opts.includes(l.bet)) opts.push(l.bet);
-  return opts.map(b => `<option value="${esc(b)}" ${b === l.bet ? "selected" : ""}>${esc(Engine.basketLabel(b))}</option>`).join("");
+  return opts.map(b => `<option value="${esc(b)}" ${b === l.bet ? "selected" : ""}>${esc(Engine.basketLabel(b, l.sport))}</option>`).join("");
 }
 function betOptions(sel) {
   const isScore = /^R/i.test(sel);
@@ -536,7 +545,7 @@ function legRow(l) {
   return `<div class="leg" data-id="${l.id}">
     <div class="leg-top">${teams}<button class="xbtn" title="Makni par" aria-label="Makni par" data-del>×</button></div>
     <div class="leg-bet">
-      <div class="betbox"><select data-f="bet" aria-label="Oklada">${l.sport === "kos" ? basketBetOptions(l) : betOptions(l.bet)}</select>
+      <div class="betbox"><select data-f="bet" aria-label="Oklada">${l.sport && l.sport !== "nog" ? basketBetOptions(l) : betOptions(l.bet)}</select>
         ${isScore ? `<input class="field score" placeholder="2:1" value="${esc(l.bet.slice(1))}" data-f="score">` : ""}</div>
       <input class="field odds" placeholder="Kvota (za dobitak)" inputmode="decimal" value="${esc(l.odds)}" data-f="odds" aria-label="Kvota tvoje kladionice, za izračun dobitka">
     </div>
@@ -580,7 +589,7 @@ function updateBadges() {
 
 /* ---------- skočni tiket odozdo (Prijedlozi i Ponuda) ---------- */
 let slipOpen = false, slipCount = 0, slipFlashT = null;
-const SPORT_EMOJI = {nog: "⚽", kos: "🏀"};
+const SPORT_EMOJI = {nog: "⚽", kos: "🏀", hok: "🏒", ten: "🎾"};
 function slipVisible() {
   if (!filledLegs().length || view === "history") return false;
   // u Ponudi je na širokom ekranu tiket već vidljiv desno, a na mobitelu kad je otvoren "Moj tiket"
@@ -601,7 +610,7 @@ function renderSlip() {
   el.classList.toggle("open", slipOpen);
   $("#slipBar").setAttribute("aria-expanded", slipOpen);
   $("#slipRows").innerHTML = fl.map(l => {
-    const r = RES[l.id] || {}, label = r.betLabel || (l.sport === "kos" ? Engine.basketLabel(l.bet) : l.bet), k = legOdds(l);
+    const r = RES[l.id] || {}, label = r.betLabel || (l.sport && l.sport !== "nog" ? Engine.basketLabel(l.bet, l.sport) : l.bet), k = legOdds(l);
     return `<div class="slip-row"><span><b>${SPORT_EMOJI[l.sport || "nog"]} ${esc(l.home)} – ${esc(l.away)}</b>
       <small>${esc(label)}${l.date ? " · " + shortDay(l.date) : ""}${l.time ? " " + esc(l.time) : ""}</small></span>
       <span class="sp">${r.p != null ? pct(r.p) : ""}<small>${k ? (l.oddsEst ? "≈" : "") + num(k) : "kvota ?"}</small></span>
@@ -708,30 +717,48 @@ async function compute() {
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
+  if (r.sport === "ten") return tennisLegHTML(r);
+  const hok = r.sport === "hok", unit = hok ? "golova" : "poena";
   const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
   if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: samo model</span>`);
 
-  const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.w}-${row.l} · koševi ${row.pf}:${row.pa}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
+  const team = (row, name) => row ? `<b>${esc(name)}</b><br>${row.pos}. mjesto · ${row.w}-${row.l}${hok ? "-" + row.otl + " · " + row.pts + " bod." : ""} · ${hok ? "golovi" : "koševi"} ${row.pf}:${row.pa}<br>Zadnjih 5: ${formHTML(row.form)}` : esc(name);
   const sgn = x => (x >= 0 ? "+" : "−") + num(Math.abs(x), 1);
   return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
     <div class="meta">Šansa za <b>${esc(r.betLabel)}</b>${r.source !== "model" ? ` · samo model ${pct(r.pModel)}` : ""}</div>
     <div class="chips">${chips.join("")}</div>
     <details><summary>Detalji utakmice</summary>
       <div class="det">
-        <div><h4>Očekivani poeni</h4>${esc(r.home)} <b>${num(r.points[0], 1)}</b><br>${esc(r.away)} <b>${num(r.points[1], 1)}</b></div>
-        <div><h4>Razlika i zbroj</h4>Domaćin <b>${sgn(r.margin)}</b><br>Ukupno <b>${num(r.total, 1)}</b> poena</div>
-        <div><h4>Pobjednik</h4>1 <b>${pct(r.basic["1"])}</b> · 2 <b>${pct(r.basic["2"])}</b></div>
+        <div><h4>Očekivani ${hok ? "golovi (60 min)" : "poeni"}</h4>${esc(r.home)} <b>${num(r.points[0], 1)}</b><br>${esc(r.away)} <b>${num(r.points[1], 1)}</b></div>
+        <div><h4>Razlika i zbroj</h4>Domaćin <b>${sgn(r.margin)}</b><br>Ukupno <b>${num(r.total, 1)}</b> ${unit}</div>
+        <div><h4>${hok ? "Regularni dio" : "Pobjednik"}</h4>1 <b>${pct(r.basic["1"])}</b>${hok ? ` · X <b>${pct(r.basic.X)}</b>` : ""} · 2 <b>${pct(r.basic["2"])}</b>${hok ? `<br>s produžecima: 1 <b>${pct(r.basic["1OT"])}</b>` : ""}</div>
         <div><h4>Domaćin</h4>${team(r.homeRow, r.home)}</div>
         <div><h4>Gost</h4>${team(r.awayRow, r.away)}</div>
-        ${r.accuracy ? `<div><h4>Pouzdanost · ${esc(r.leagueName)}</h4>Prošla sezona: model je pogodio pobjednika u <b>${pct(r.accuracy.hitModel)}</b> utakmica (uvijek domaćin ${pct(r.accuracy.hitHome)})</div>` : ""}
+        ${r.accuracy ? `<div><h4>Pouzdanost · ${esc(r.leagueName)}</h4>Prošla sezona: model je pogodio pobjednika u <b>${pct(r.accuracy.hitModel)}</b> utakmica (uvijek domaćin ${pct(r.accuracy.hitHome)})${hok ? ". Hokej je vrlo nepredvidljiv, zato se šanse oslanjaju na kvote." : ""}</div>` : ""}
+      </div>
+    </details>`;
+}
+function tennisLegHTML(r) {
+  const pl = (row, name, elo) => row ? `<b>${esc(name)}</b><br>Elo <b>${row.elo}</b> (${row.pos}. na listi) · ${row.w}-${row.l}<br>Zadnjih 5: ${formHTML(row.form)}`
+    : `<b>${esc(name)}</b><br>Elo ${elo != null ? Math.round(elo) : "?"}`;
+  return `<div class="res-top"><div class="pct">${pct(r.p)}</div><div class="bar"><i style="width:${Math.max(1, r.p * 100)}%"></i></div></div>
+    <div class="meta">Šansa za <b>${esc(r.betLabel)}</b>${r.tournament ? ` · ${esc(r.tournament)}${r.round ? ", " + esc(r.round) : ""}` : ""}</div>
+    <div class="chips"><span class="chip bad">Bez kvota: samo model</span></div>
+    <details><summary>Detalji meča</summary>
+      <div class="det">
+        <div><h4>Pobjednik</h4>${esc(r.home)} <b>${pct(r.basic["1"])}</b><br>${esc(r.away)} <b>${pct(r.basic["2"])}</b></div>
+        <div><h4>Format</h4>Na ${r.bo === 5 ? "3 dobivena seta" : "2 dobivena seta"}</div>
+        <div><h4>Prvi igrač</h4>${pl(r.homeRow, r.home, r.elo[0])}</div>
+        <div><h4>Drugi igrač</h4>${pl(r.awayRow, r.away, r.elo[1])}</div>
+        ${r.accuracy ? `<div><h4>Pouzdanost · ${esc(r.leagueName)}</h4>Zadnjih 6 mjeseci Elo je pogodio pobjednika u <b>${pct(r.accuracy.hitModel)}</b> mečeva.</div>` : ""}
       </div>
     </details>`;
 }
 
 function legHTML(r) {
   if (r.error) return `<div class="err">${esc(r.error)}</div>`;
-  if (r.sport === "kos") return basketLegHTML(r);
+  if (r.sport && r.sport !== "nog") return basketLegHTML(r);
   const chips = [];
   if (r.pMarket != null) chips.push(`<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>`);
   if (r.source === "model") chips.push(`<span class="chip bad">Bez kvota: manje pouzdano</span>`);
@@ -805,7 +832,7 @@ function renderSide() {
   if (!INIT) return;
   document.querySelectorAll("#sports button").forEach(b => b.classList.toggle("on", b.dataset.sport === sport));
   document.querySelectorAll("#sideSeg button").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
-  if (sport === "kos") return renderBasket();
+  if (sport !== "nog") return renderBasket();
   const lgs = INIT.leagues;
   if (side === "tb" && !lgs.some(l => l.code === lgFilter)) lgFilter = lgs[0].code;
   if (!["all", "top5"].includes(lgFilter) && !lgs.some(l => l.code === lgFilter)) lgFilter = "all";
@@ -863,8 +890,20 @@ function renderSide() {
 
 /* ---------- košarka u ponudi ---------- */
 const fmtL = x => (x > 0 ? "+" : x < 0 ? "−" : "") + num(Math.abs(x), 1).replace(",0", "");
+function tennisBets(bo) {
+  const sc = bo === 5 ? ["3:0", "3:1", "3:2", "2:3", "1:3", "0:3"] : ["2:0", "2:1", "1:2", "0:2"], line = bo === 5 ? 3.5 : 2.5;
+  return [["1", "1"], ["2", "2"], ...sc.map(x => [`S:${x}`, x]),
+    [`SO:${line}`, `više ${num(line, 1)} seta`], [`SU:${line}`, `manje ${num(line, 1)} seta`]];
+}
 function basketButtons(f) {
-  const L = f.lines, o = f.odds || {};
+  const L = f.lines, o = f.odds || {}, lg = INIT.basket.leagues.find(l => l.code === f.league) || {};
+  if (lg.model === "elo") return tennisBets(L.bo || 3).map(([b, t]) => [b, t, null]);
+  if (lg.model === "poisson") {
+    const t = num(L.total, 1).replace(",0", "");
+    return [["1", "1", null], ["X", "X", null], ["2", "2", null], ["1X", "1X", null], ["X2", "X2", null], ["12", "12", null],
+      ["1OT", "1 s prod.", o["1OT"]], ["2OT", "2 s prod.", o["2OT"]],
+      [`O:${L.total}`, `više ${t}`, L.market ? o.O : null], [`U:${L.total}`, `manje ${t}`, L.market ? o.U : null]];
+  }
   return [
     ["1", "1", o["1"]], ["2", "2", o["2"]],
     [`H1:${L.spread}`, `H1 ${fmtL(L.spread)}`, L.market ? o.H1 : null],
@@ -879,18 +918,28 @@ function basketButtons(f) {
 }
 function renderBasket() {
   const BK = INIT.basket || {leagues: [], fixtures: []};
-  if (!BK.leagues.length) { $("#days").innerHTML = ""; $("#dayhead").innerHTML = ""; $("#lgf").innerHTML = "";
-    $("#side").innerHTML = `<div class="empty">Košarkaški podaci trenutno nisu dostupni.</div>`; return; }
-  if (!BK.leagues.some(l => l.code === bLeague)) bLeague = BK.leagues[0].code;
-  const lg = BK.leagues.find(l => l.code === bLeague);
-  $("#lgf").innerHTML = `<div class="seg wide">${BK.leagues.map(l => `<button data-bl="${l.code}" class="${l.code === bLeague ? "on" : ""}">${esc(l.name)}</button>`).join("")}</div>
-    <div class="srcnote">${lg.hasOdds
-      ? `Šanse se oslanjaju na kvote kladionice <b>DraftKings (SAD)</b>.`
-      : `Za Euroligu nema besplatnih kvota, pa su šanse <b>samo iz modela</b>.`}
-      ${lg.accuracy ? ` Prošla sezona: model je pogodio pobjednika u <b>${pct(lg.accuracy.hitModel)}</b> utakmica.` : ""}</div>`;
+  const leagues = BK.leagues.filter(l => (l.sport || "kos") === sport);
+  const unit = sport === "ten" ? "mečeva" : "utakmica";
+  if (!leagues.length) { $("#days").innerHTML = ""; $("#dayhead").innerHTML = ""; $("#lgf").innerHTML = "";
+    $("#side").innerHTML = `<div class="empty">Podaci za ovaj sport trenutno nisu dostupni.</div>`; return; }
+  let bLeague = otherLeague[sport];
+  if (!leagues.some(l => l.code === bLeague)) bLeague = otherLeague[sport] = leagues[0].code;
+  const lg = leagues.find(l => l.code === bLeague);
+  const note = lg.model === "elo"
+    ? `Za tenis nema besplatnih kvota, pa su šanse <b>samo iz Elo ocjene igrača</b>.${lg.accuracy ? ` Zadnjih 6 mjeseci Elo je pogodio pobjednika u <b>${pct(lg.accuracy.hitModel)}</b> mečeva.` : ""}`
+    : lg.model === "poisson"
+      ? `Hokej se iz rezultata slabo predviđa (model ${lg.accuracy ? pct(lg.accuracy.hitModel) : "~53 %"} pogođenih pobjednika), pa se šanse oslanjaju na kvote <b>DraftKings (SAD)</b>. 1, X, 2 vrijede za regularni dio (60 min).`
+      : (lg.hasOdds ? `Šanse se oslanjaju na kvote kladionice <b>DraftKings (SAD)</b>.` : `Za Euroligu nema besplatnih kvota, pa su šanse <b>samo iz modela</b>.`)
+        + (lg.accuracy ? ` Prošla sezona: model je pogodio pobjednika u <b>${pct(lg.accuracy.hitModel)}</b> utakmica.` : "");
+  $("#lgf").innerHTML = (leagues.length > 1 ? `<div class="seg wide">${leagues.map(l => `<button data-bl="${l.code}" class="${l.code === bLeague ? "on" : ""}">${esc(l.name)}</button>`).join("")}</div>` : "")
+    + `<div class="srcnote">${note}</div>`;
   if (side === "tb") {
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
-    $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>P-I</th><th>Koš</th><th>Forma</th></tr>
+    if (lg.model === "elo") $("#side").innerHTML = `<p class="sub">Najbolji igrači po Elo ocjeni (zadnjih 12 mjeseci)</p><table><tr><th>#</th><th>Igrač</th><th>Elo</th><th>P-I</th><th>Forma</th></tr>
+      ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td><b>${r.elo}</b></td><td>${r.w}-${r.l}</td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
+    else if (lg.model === "poisson") $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>P-I-PR</th><th>Bod</th><th>Gol</th></tr>
+      ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.w}-${r.l}-${r.otl}</td><td><b>${r.pts}</b></td><td>${r.pf}:${r.pa}</td></tr>`).join("")}</table>`;
+    else $("#side").innerHTML = `<table><tr><th>#</th><th>Momčad</th><th>U</th><th>P-I</th><th>Koš</th><th>Forma</th></tr>
       ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td><b>${r.w}-${r.l}</b></td><td>${r.pf}:${r.pa}</td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
     return;
   }
@@ -898,18 +947,21 @@ function renderBasket() {
   for (const f of all) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort(), today = todayIso();
   if (!days.length) { $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
-    $("#side").innerHTML = `<div class="empty">Od danas do ${shortDay(offerEnd())} nema utakmica ove lige.</div>`; return; }
+    $("#side").innerHTML = `<div class="empty">Od danas do ${shortDay(offerEnd())} nema ${unit} u ovoj ligi.</div>`; return; }
   if (!bDay || !counts[bDay]) bDay = days.find(d => d >= today) || days[0];
   $("#days").innerHTML = days.map(d => `<button class="dayb ${d === bDay ? "on" : ""}" data-day="${d}">
-      <span class="d1">${relDay(d)}</span><span class="d2">${isoDate(d).getDate()}.${isoDate(d).getMonth() + 1}.</span><span class="d3">${counts[d]} utak.</span></button>`).join("");
+      <span class="d1">${relDay(d)}</span><span class="d2">${isoDate(d).getDate()}.${isoDate(d).getMonth() + 1}.</span><span class="d3">${counts[d]} ${sport === "ten" ? "meč." : "utak."}</span></button>`).join("");
   const sel = $("#days .on"); if (sel) sel.scrollIntoView({block: "nearest", inline: "nearest"});
-  $("#dayhead").innerHTML = `<div class="dayhead"><h3>${fullDay(bDay)}</h3><span class="sub">${counts[bDay]} utakmica</span></div>`;
-  const fx = all.filter(f => f.iso === bDay).sort((a, b) => a.time.localeCompare(b.time));
-  $("#side").innerHTML = `<div class="lghead">${esc(lg.flag)} · ${esc(lg.name)}</div>` + fx.map(f => {
-    const leg = legFor(f.home, f.away, "kos"), i = BK.fixtures.indexOf(f);
-    return `<div class="fx">
+  $("#dayhead").innerHTML = `<div class="dayhead"><h3>${fullDay(bDay)}</h3><span class="sub">${counts[bDay]} ${unit}</span></div>`;
+  const fx = all.filter(f => f.iso === bDay).sort((a, b) => (a.tournament || "").localeCompare(b.tournament || "") || a.time.localeCompare(b.time));
+  let lastGroup = null;
+  $("#side").innerHTML = fx.map(f => {
+    const leg = legFor(f.home, f.away, sport), i = BK.fixtures.indexOf(f);
+    const group = f.tournament ? `${f.tournament}` : `${lg.flag} · ${lg.name}`;
+    const head = group !== lastGroup ? `<div class="lghead">${esc(group)}</div>` : ""; lastGroup = group;
+    return `${head}<div class="fx">
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
-        <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div></div></div>
+        <div class="fx-teams"><div>${esc(f.home)}</div><div>${esc(f.away)}</div>${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>
       <div class="fx-odds">${basketButtons(f).map(([bet, label, odds]) => {
         const on = leg && leg.bet === bet, pr = Engine.basketProbFor(f, bet);
         return `<button class="ob ${on ? "on" : ""}" data-bfx="${i}" data-b="${esc(bet)}" aria-pressed="${!!on}">
@@ -919,15 +971,15 @@ function renderBasket() {
 }
 $("#sports").onclick = e => {
   const b = e.target.closest("[data-sport]"); if (!b) return;
-  sport = b.dataset.sport; store.set("nt-sport", sport); renderSide();
+  sport = b.dataset.sport; store.set("nt-sport", sport); bDay = null; renderSide();
 };
 $("#lgf").addEventListener("click", e => {
   const b = e.target.closest("[data-bl]"); if (!b) return;
-  bLeague = b.dataset.bl; store.set("nt-bl", bLeague); bDay = null; renderSide();
+  otherLeague[sport] = b.dataset.bl; store.set("nt-leagues", otherLeague); bDay = null; renderSide();
 });
 $("#sideSeg").onclick = e => { const b = e.target.closest("button"); if (!b) return; side = b.dataset.tab; store.set("nt-side", side); renderSide(); };
 $("#lgf").onchange = e => { if (e.target.id !== "lgsel") return; lgFilter = e.target.value; store.set("nt-lg", lgFilter); renderSide(); };
-$("#days").onclick = e => { const b = e.target.closest("[data-day]"); if (!b) return; if (sport === "kos") bDay = b.dataset.day; else selDay = b.dataset.day; renderSide(); };
+$("#days").onclick = e => { const b = e.target.closest("[data-day]"); if (!b) return; if (sport !== "nog") bDay = b.dataset.day; else selDay = b.dataset.day; renderSide(); };
 $("#paneSeg").onclick = e => { const b = e.target.closest("[data-pane]"); if (b) setPane(b.dataset.pane); };
 function setPane(p) {
   $("#ticketview").dataset.pane = p;
@@ -958,7 +1010,7 @@ $("#side").onclick = e => {
   if (kb) {
     const f = INIT.basket.fixtures[+kb.dataset.bfx], bet = kb.dataset.b;
     const real = (basketButtons(f).find(x => x[0] === bet) || [])[2];
-    const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: f.time, sport: "kos", lines: f.lines}, bet,
+    const msg = toggleLeg({home: f.home, away: f.away, iso: f.iso, time: f.time, sport, lines: f.lines}, bet,
       real || estOdds(Engine.basketProbFor(f, bet)), !real);
     renderSide();
     return toast(`${msg} · ${parovi(filledLegs().length)}`, isNarrow() ? () => setPane("ticket") : null);
@@ -989,10 +1041,10 @@ document.querySelector(".nav").onclick = e => { const b = e.target.closest("butt
 /* ---------- prijedlog dana i prijedlog tjedna ---------- */
 let SUG = null, minOdds = store.get("nt-minodds", 1.5), maxP = store.get("nt-maxp2", 0.5), pickCount = store.get("nt-count", 5);
 let pickMode = store.get("nt-pickmode", "odds");  // "odds" ili "chance" - filtrira se samo po jednom
-const SPORT_ICON = {nog: "⚽", kos: "🏀"};
+const SPORT_ICON = {nog: "⚽", kos: "🏀", hok: "🏒", ten: "🎾"};
 
 let daySport = store.get("nt-daysport", "all"), weekSport = store.get("nt-weeksport", "all");
-const sportSeg = (k, cur) => `<div class="seg wide psport">${[["all", "Svi sportovi"], ["nog", "⚽ Nogomet"], ["kos", "🏀 Košarka"]]
+const sportSeg = (k, cur) => `<div class="seg wide psport">${[["all", "Svi"], ["nog", "⚽"], ["kos", "🏀"], ["hok", "🏒"], ["ten", "🎾"]]
   .map(([v, t]) => `<button data-psport="${k}:${v}" class="${v === cur ? "on" : ""}">${t}</button>`).join("")}</div>`;
 const filterText = () => pickMode === "chance" ? `sa šansom ${Math.round((maxP - 0.1) * 100)}–${Math.round(maxP * 100)} %` : `s kvotom barem ${num(minOdds)}`;
 function heroHTML(kind, title, when, s) {
@@ -1039,7 +1091,7 @@ async function renderSuggest() {
     <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
       <p class="sub" style="margin:0;font-size:14px">Prijedlozi uključuju sve sportove u aplikaciji: ⚽ nogomet (22 lige) i 🏀 košarku (NBA i Euroliga).
       Biraš <b>ili</b> najmanju kvotu <b>ili</b> najveću šansu (uključen je samo jedan filter). „Šansa do 30 %“ znači oklade sa šansom između 20 i 30 %, dakle s većim kvotama.
-      Prijedlozi uvijek uključuju sve sportove (⚽ nogomet, 🏀 NBA i Euroliga), a tjedni su raspoređeni kroz dane i složeni po datumu. Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
+      Prijedlozi uvijek uključuju sve sportove (⚽ nogomet, 🏀 NBA i Euroliga, 🏒 NHL, 🎾 ATP i WTA), a tjedni su raspoređeni kroz dane i složeni po datumu. Iz svake utakmice uzima se oklada s najvećom šansom koja prolazi filter, pa se prikaže ${pickCount} najsigurnijih.
       <b>Prijedlog dana</b> gleda današnje utakmice koje još nisu počele, a <b>prijedlog tjedna</b> sve utakmice od sada do idućih 7 dana. Oba se sama mijenjaju svaki dan i kad se osvježe kvote (3 puta dnevno).</p>
       <p class="sub" style="font-size:14px">Manja šansa znači veći mogući dobitak. Gdje kladionice nemaju kvote (Euroliga i dio nogometnih utakmica dalje u tjednu), šansa je samo iz modela i tako piše uz par. Provjera na prošloj sezoni (22 lige) pokazala je da su kvote kladionica točnije od samog modela, pa se šanse oslanjaju na njih.
       Nijedan način biranja nije dugoročno pobijedio kladionice (one uzimaju oko 5 % marže): ovo su najvjerojatnije oklade, a ne zajamčena zarada.</p></div>`;
@@ -1178,7 +1230,7 @@ function applyInit(d) {
   const last = d.lastResult ? fmtDate(d.lastResult) : "?";
   const upd = d.builtAt ? new Date(d.builtAt).toLocaleString("hr-HR", {day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit"}) : "?";
   const nb = d.basket ? d.basket.fixtures.length : 0;
-  $("#sub").textContent = `Nogomet: ${d.leagues.length} liga · Košarka: NBA i Euroliga · ${d.fixtures.length + nb} utakmica · ažurirano ${upd}`;
+  $("#sub").textContent = `⚽ ${d.leagues.length} liga · 🏀 NBA, Euroliga · 🏒 NHL · 🎾 ATP, WTA · ${d.fixtures.length + nb} utakmica · ažurirano ${upd}`;
   $("#sub").title = `Rezultati do ${last}`;
   renderSide();
 }

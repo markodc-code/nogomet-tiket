@@ -51,7 +51,7 @@ const Engine = (() => {
       f.iso = localIsoD(k); f.time = `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`;
       if (!bFix[f.home + "|" + f.away]) bFix[f.home + "|" + f.away] = f;
     }
-    for (const [d, lg, h, a, hs, as] of B.results) (bRes[h + "|" + a] = bRes[h + "|" + a] || []).push([d, hs, as]);
+    for (const [d, lg, h, a, hs, as, ex] of B.results) (bRes[h + "|" + a] = bRes[h + "|" + a] || []).push([d, hs, as, ex]);
     return D;
   }
 
@@ -224,7 +224,7 @@ const Engine = (() => {
   }
 
   function evaluateTicket(legs) {
-    const res = legs.slice(0, 30).map(l => l.sport === "kos" ? evaluateBasketLeg(l) : evaluateLeg(l)), ok = res.filter(r => !r.error), total = {legs: ok.length};
+    const res = legs.slice(0, 30).map(l => l.sport && l.sport !== "nog" ? evaluateBasketLeg(l) : evaluateLeg(l)), ok = res.filter(r => !r.error), total = {legs: ok.length};
     if (ok.length) {
       const p = ok.reduce((x, r) => x * r.p, 1);
       Object.assign(total, {p, fairOdds: p > 0 ? 1 / p : null});
@@ -245,7 +245,9 @@ const Engine = (() => {
     return x > 0 ? 1 - p : p;
   };
   const fmtLine = x => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toLocaleString("hr-HR");
-  function basketLabel(bet) {
+  function basketLabel(bet, sport) {
+    if (sport === "hok") return hockeyLabel(bet);
+    if (sport === "ten") return tennisLabel(bet);
     const [k, v] = String(bet).split(":"), x = v != null ? parseFloat(v) : null;
     if (k === "1") return "1 (pobjeda domaćina)";
     if (k === "2") return "2 (pobjeda gosta)";
@@ -276,6 +278,8 @@ const Engine = (() => {
   // Linije za ponudu: kladionice (NBA) ili najbliža ".5" vrijednost modela (Euroliga).
   function basketLines(f) {
     const lg = BL[f.league], o = f.odds || {};
+    if (lg.model === "poisson") return {total: o.total != null ? o.total : 5.5, market: o.total != null};
+    if (lg.model === "elo") return {bo: f.bo || 3};
     const e = basketExpect(lg, f.home, f.away, f);
     const spread = o.spread != null ? o.spread : -(Math.floor(e.margin) + 0.5);
     const total = o.total != null ? o.total : Math.floor(e.total) + 0.5;
@@ -302,6 +306,8 @@ const Engine = (() => {
   // Šansa za gumb u ponudi (bez kvote kladionica, npr. Euroliga).
   function basketProbFor(f, bet) {
     const lg = BL[f.league]; if (!lg) return null;
+    if (lg.model === "poisson") return hockeyBetP(hockeyLambdas(lg, f.home, f.away, f).m, bet);
+    if (lg.model === "elo") return tennisBetP(tennisMatchP(lg, f.home, f.away), f.bo || 3, bet);
     return basketProb(basketExpect(lg, f.home, f.away, f), bet);
   }
   function settleBasket(bet, hs, as) {
@@ -331,10 +337,12 @@ const Engine = (() => {
   }
   function evaluateBasketLeg(leg) {
     const h = findIn(BI, leg.home), a = findIn(BI, leg.away);
-    if (!h || !a) return {error: `Ne prepoznajem momčad „${!h ? leg.home : leg.away}“.`};
-    if (h === a) return {error: "Domaćin i gost su ista momčad."};
+    if (!h || !a) return {error: `Ne prepoznajem „${!h ? leg.home : leg.away}“.`};
+    if (h === a) return {error: "Domaćin i gost su isti."};
     if (BI.where[h] !== BI.where[a]) return {error: `${h} i ${a} nisu u istoj ligi.`};
     const lg = BL[BI.where[h]], fx = bFix[h + "|" + a], bet = String(leg.bet || "1").trim();
+    if (lg.model === "poisson") return evaluateHockey(leg, lg, h, a, fx, bet);
+    if (lg.model === "elo") return evaluateTennis(leg, lg, h, a, fx, bet);
     const e = basketExpect(lg, h, a, fx);
     const lines = fx ? basketLines(fx) : {spread: -(Math.floor(e.margin) + 0.5), total: Math.floor(e.total) + 0.5,
       home: Math.floor(e.total / 2 + e.margin / 2) + 0.5, away: Math.floor(e.total / 2 - e.margin / 2) + 0.5, market: false};
@@ -355,6 +363,168 @@ const Engine = (() => {
       basic: {"1": e.pHome, "2": 1 - e.pHome},
       date: fx ? fx.iso : null, time: fx ? fx.time : null, homeRow: row(h), awayRow: row(a),
     };
+  }
+
+  // ------------------------------------------------------------ hokej (NHL)
+  // Model golova regularnog dijela (60 min). "1OT"/"2OT" uključuju produžetke i raspucavanje,
+  // a ukupno golova kao kod kladionica: pobjednik produžetaka dobiva jedan gol.
+  function hockeyLabel(bet) {
+    const [k, v] = String(bet).split(":"), x = v != null ? parseFloat(v).toLocaleString("hr-HR") : "";
+    return ({"1": "1 (regularni dio)", "X": "X (regularni dio)", "2": "2 (regularni dio)",
+      "1X": "1X (regularni dio)", "X2": "X2 (regularni dio)", "12": "12 (regularni dio)",
+      "1OT": "1 (uključujući produžetke)", "2OT": "2 (uključujući produžetke)"})[k]
+      || (k === "O" ? `Više od ${x} golova` : k === "U" ? `Manje od ${x} golova` : bet);
+  }
+  function hockeyBetP(m, bet) {
+    const [k, v] = String(bet).split(":"), x = parseFloat(v);
+    let p1 = 0, px = 0, p2 = 0, over = 0;
+    for (let i = 0; i < m.length; i++) for (let j = 0; j < m.length; j++) {
+      const q = m[i][j];
+      if (i > j) p1 += q; else if (i < j) p2 += q; else px += q;
+      if (k === "O" || k === "U") { const tot = i + j + (i === j ? 1 : 0); if (tot > x) over += q; }
+    }
+    const r = {"1": p1, "X": px, "2": p2, "1X": p1 + px, "X2": px + p2, "12": p1 + p2, "1OT": p1 + px / 2, "2OT": p2 + px / 2};
+    if (k in r) return r[k];
+    if (k === "O") return over;
+    if (k === "U") return 1 - over;
+    throw new Error("Nepoznata hokejaška oklada: " + bet);
+  }
+  const hCache = {};
+  function hockeyLambdas(lg, h, a, fx) {
+    const ck = h + "|" + a + "|" + (fx ? fx.utc : "");
+    if (hCache[ck]) return hCache[ck];
+    const mlh = Math.exp(lg.mu + lg.home + (lg.att[h] || 0) - (lg.de[a] || 0));
+    const mla = Math.exp(lg.mu + (lg.att[a] || 0) - (lg.de[h] || 0));
+    const o = (fx && fx.odds) || {};
+    let lh = mlh, la = mla, market = false, pMkt = null;
+    if (lg.weight > 0 && o["1OT"] && o["2OT"]) {
+      const a1 = 1 / o["1OT"], a2 = 1 / o["2OT"]; pMkt = a1 / (a1 + a2);
+      const pO = o.O && o.U && o.total != null ? (1 / o.O) / (1 / o.O + 1 / o.U) : null;
+      const loss = (x, y) => {
+        const m = matrix(Math.exp(x), Math.exp(y), lg.rho);
+        let e = (hockeyBetP(m, "1OT") - pMkt) ** 2;
+        if (pO != null) e += (hockeyBetP(m, `O:${o.total}`) - pO) ** 2;
+        return e;
+      };
+      let x = Math.log(mlh), y = Math.log(mla), step = 0.2, best = loss(x, y);
+      while (step > 0.004) {
+        let moved = false;
+        for (const [dx, dy] of [[step, 0], [-step, 0], [0, step], [0, -step], [step, -step], [-step, step], [step, step], [-step, -step]]) {
+          const l = loss(x + dx, y + dy);
+          if (l < best) { best = l; x += dx; y += dy; moved = true; break; }
+        }
+        if (!moved) step /= 2;
+      }
+      const w = lg.weight;
+      lh = Math.exp((1 - w) * Math.log(mlh) + w * x);
+      la = Math.exp((1 - w) * Math.log(mla) + w * y);
+      market = true;
+    }
+    return (hCache[ck] = {lh, la, mlh, mla, market, m: matrix(lh, la, lg.rho), mModel: matrix(mlh, mla, lg.rho)});
+  }
+  function settleHockey(bet, hs, as, ot) {
+    const [k, v] = String(bet).split(":"), x = parseFloat(v);
+    const reg = ot ? "X" : hs > as ? "1" : "2";
+    if (k === "1" || k === "X" || k === "2") return reg === k;
+    if (k === "1X") return reg !== "2";
+    if (k === "X2") return reg !== "1";
+    if (k === "12") return reg !== "X";
+    if (k === "1OT") return hs > as;
+    if (k === "2OT") return as > hs;
+    if (k === "O") return hs + as > x;
+    if (k === "U") return hs + as < x;
+    throw new Error("Nepoznata hokejaška oklada: " + bet);
+  }
+  function evaluateHockey(leg, lg, h, a, fx, bet) {
+    const L = hockeyLambdas(lg, h, a, fx), o = (fx && fx.odds) || {};
+    let p, pModel;
+    try { p = hockeyBetP(L.m, bet); pModel = hockeyBetP(L.mModel, bet); } catch (e) { return {error: e.message}; }
+    const [k, v] = bet.split(":");
+    const pair = (x, y) => (o[x] && o[y]) ? (1 / o[x]) / (1 / o[x] + 1 / o[y]) : null;
+    const pMarket = k === "1OT" ? pair("1OT", "2OT") : k === "2OT" ? pair("2OT", "1OT")
+      : k === "O" && parseFloat(v) === o.total ? pair("O", "U") : k === "U" && parseFloat(v) === o.total ? pair("U", "O") : null;
+    return otherResult(leg, lg, h, a, fx, bet, "hok", p, pModel, pMarket, L.market, {
+      points: [L.lh, L.la], margin: L.lh - L.la, total: L.lh + L.la,
+      basic: {"1": hockeyBetP(L.m, "1"), "X": hockeyBetP(L.m, "X"), "2": hockeyBetP(L.m, "2"), "1OT": hockeyBetP(L.m, "1OT")},
+      lines: basketLines(fx || {league: lg.code, odds: {}}),
+    });
+  }
+
+  // ------------------------------------------------------------ tenis (ATP / WTA)
+  // Elo ocjena igrača -> šansa za meč -> šansa za set -> rezultat u setovima.
+  function tennisLabel(bet) {
+    const [k, a, b] = String(bet).split(":");
+    if (k === "1") return "Pobjeda prvog igrača";
+    if (k === "2") return "Pobjeda drugog igrača";
+    if (k === "S") return `Rezultat u setovima ${a}:${b}`;
+    if (k === "SO") return `Više od ${parseFloat(a).toLocaleString("hr-HR")} seta`;
+    if (k === "SU") return `Manje od ${parseFloat(a).toLocaleString("hr-HR")} seta`;
+    return bet;
+  }
+  function tennisMatchP(lg, a, b) {
+    const ra = lg.elo[a] ?? 1450, rb = lg.elo[b] ?? 1450;
+    return 1 / (1 + Math.pow(10, (rb - ra) / 400));
+  }
+  function setScores(s, bo) {
+    const q = 1 - s, out = {};
+    if (bo === 5) Object.assign(out, {"3:0": s ** 3, "3:1": 3 * s ** 3 * q, "3:2": 6 * s ** 3 * q * q, "2:3": 6 * s * s * q ** 3, "1:3": 3 * s * q ** 3, "0:3": q ** 3});
+    else Object.assign(out, {"2:0": s * s, "2:1": 2 * s * s * q, "1:2": 2 * s * q * q, "0:2": q * q});
+    return out;
+  }
+  function setP(pm, bo) {   // vjerojatnost osvajanja seta iz koje slijedi zadana šansa za meč
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2, sc = setScores(mid, bo);
+      const win = Object.entries(sc).filter(([k]) => +k[0] > +k[2]).reduce((x, [, v]) => x + v, 0);
+      if (win < pm) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+  function tennisBetP(pm, bo, bet) {
+    const [k, a, b] = String(bet).split(":");
+    if (k === "1") return pm;
+    if (k === "2") return 1 - pm;
+    const sc = setScores(setP(pm, bo), bo);
+    if (k === "S") return sc[`${a}:${b}`] ?? 0;
+    const line = parseFloat(a), over = Object.entries(sc).filter(([key]) => +key[0] + +key[2] > line).reduce((x, [, v]) => x + v, 0);
+    if (k === "SO") return over;
+    if (k === "SU") return 1 - over;
+    throw new Error("Nepoznata teniska oklada: " + bet);
+  }
+  function settleTennis(bet, s1, s2, w) {
+    const [k, a, b] = String(bet).split(":");
+    if (k === "1") return w === 1;
+    if (k === "2") return w === 2;
+    if (k === "S") return s1 === +a && s2 === +b;
+    if (k === "SO") return s1 + s2 > parseFloat(a);
+    if (k === "SU") return s1 + s2 < parseFloat(a);
+    throw new Error("Nepoznata teniska oklada: " + bet);
+  }
+  function evaluateTennis(leg, lg, h, a, fx, bet) {
+    const bo = (fx && fx.bo) || (leg.lines && leg.lines.bo) || 3, pm = tennisMatchP(lg, h, a);
+    let p;
+    try { p = tennisBetP(pm, bo, bet); } catch (e) { return {error: e.message}; }
+    return otherResult(leg, lg, h, a, fx, bet, "ten", p, p, null, false, {
+      elo: [lg.elo[h] ?? null, lg.elo[a] ?? null], basic: {"1": pm, "2": 1 - pm}, bo, lines: {bo},
+      tournament: fx && fx.tournament, round: fx && fx.round,
+    });
+  }
+
+  function otherResult(leg, lg, h, a, fx, bet, sport, p, pModel, pMarket, market, extra) {
+    let odds = leg.odds === undefined || leg.odds === null || leg.odds === "" ? null : parseFloat(String(leg.odds).replace(",", "."));
+    if (!(odds > 0)) odds = null;
+    const row = t => { const i = lg.table.findIndex(r => r.team === t); return i < 0 ? null : {pos: i + 1, ...lg.table[i]}; };
+    return {
+      sport, home: h, away: a, league: lg.code, leagueName: lg.name, flag: lg.flag, accuracy: lg.accuracy, bet,
+      betLabel: basketLabel(bet, sport), p, pModel, pMarket, source: market ? "model+kladionice" : "model",
+      fairOdds: p > 0 ? 1 / p : null, odds, value: odds ? p * odds - 1 : null,
+      date: fx ? fx.iso : null, time: fx ? fx.time : null, homeRow: row(h), awayRow: row(a), ...extra,
+    };
+  }
+  function settleOther(sport, bet, g) {
+    if (sport === "hok") return settleHockey(bet, g[1], g[2], !!g[3]);
+    if (sport === "ten") return settleTennis(bet, g[1], g[2], g[3]);
+    return settleBasket(bet, g[1], g[2]);
   }
 
   // ------------------------------------------------------------ spremljeni tiketi (na ovom uređaju)
@@ -378,7 +548,7 @@ const Engine = (() => {
 
   const dayDiff = (a, b) => Math.round((new Date(a) - new Date(b)) / 864e5);
   function findResult(leg, created) {
-    let games = (leg.sport === "kos" ? bRes : resultsByPair)[leg.home + "|" + leg.away] || [];
+    let games = (leg.sport && leg.sport !== "nog" ? bRes : resultsByPair)[leg.home + "|" + leg.away] || [];
     games = leg.date ? games.filter(g => Math.abs(dayDiff(g[0], leg.date)) <= 2)
                      : games.filter(g => dayDiff(g[0], created) >= -1);
     return games.length ? games.slice().sort()[0] : null;
@@ -396,7 +566,7 @@ const Engine = (() => {
         const g = findResult(leg, created);
         if (g) {
           leg.score = `${g[1]}:${g[2]}`; leg.playedOn = g[0];
-          try { leg.status = (leg.sport === "kos" ? settleBasket : settleBet)(leg.bet, g[1], g[2]) ? "won" : "lost"; } catch { leg.status = "pending"; }
+          try { leg.status = (leg.sport && leg.sport !== "nog" ? settleOther(leg.sport, leg.bet, g) : settleBet(leg.bet, g[1], g[2])) ? "won" : "lost"; } catch { leg.status = "pending"; }
         } else leg.status = "pending";
         if (leg.status === "lost") status = "lost";
         else if (leg.status === "pending" && status !== "lost") status = "pending";
@@ -466,7 +636,19 @@ const Engine = (() => {
   const estOdds = p => Math.round(EST_MARGIN / p * 100) / 100;
   function candidates(item) {
     const f = item.f, out = [];
-    if (item.sport === "kos") {
+    if (item.sport === "hok") {
+      const L = basketLines(f), o = f.odds || {};
+      for (const [bet, odds] of [["1", null], ["X", null], ["2", null], ["1OT", o["1OT"]], ["2OT", o["2OT"]],
+        [`O:${L.total}`, L.market ? o.O : null], [`U:${L.total}`, L.market ? o.U : null]]) {
+        const p = basketProbFor(f, bet);
+        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
+      }
+    } else if (item.sport === "ten") {
+      for (const bet of ["1", "2"]) {
+        const p = basketProbFor(f, bet);
+        if (p > 0) out.push({bet, p, odds: estOdds(p), est: true});
+      }
+    } else if (item.sport === "kos") {
       const L = basketLines(f), o = f.odds || {};
       for (const [bet, odds] of [["1", o["1"]], ["2", o["2"]], [`H1:${L.spread}`, L.market ? o.H1 : null],
         [`H2:${-L.spread}`, L.market ? o.H2 : null], [`O:${L.total}`, o.total === L.total ? o.O : null], [`U:${L.total}`, o.total === L.total ? o.U : null]]) {
@@ -494,11 +676,11 @@ const Engine = (() => {
       }
       if (!top) continue;
       const f = item.f, leg = {home: f.home, away: f.away, bet: top.bet, odds: top.odds, sport: item.sport};
-      const r = item.sport === "kos" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
+      const r = item.sport !== "nog" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
       if (r.error) continue;
       best.push({...r, sport: item.sport, est: top.est, ev: r.p * top.odds - 1, k: item.k.getTime(),
         date: localIso(item.k), time: `${String(item.k.getHours()).padStart(2, "0")}:${String(item.k.getMinutes()).padStart(2, "0")}`,
-        lines: item.sport === "kos" ? basketLines(f) : undefined});
+        lines: item.sport !== "nog" ? basketLines(f) : undefined});
     }
     best.sort((a, b) => b.p - a.p);
 
@@ -532,7 +714,7 @@ const Engine = (() => {
     const weekEnd = localIso(new Date(now.getTime() + 6 * 864e5));
     const open = [
       ...D.fixtures.map(f => ({sport: "nog", f, k: kickoff(f)})),
-      ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: "kos", f, k: new Date(f.utc)})),
+      ...B.fixtures.filter(f => BL[f.league]).map(f => ({sport: BL[f.league].sport || "kos", f, k: new Date(f.utc)})),
     ].filter(x => x.k > now).sort((a, b) => a.k - b.k);
     const bySport = sp => sp === "all" ? open : open.filter(x => x.sport === sp);
     const dayOpen = bySport(daySport);
@@ -555,7 +737,7 @@ const Engine = (() => {
         weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
       basket: {
-        leagues: B.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, hasOdds: l.hasOdds,
+        leagues: B.leagues.map(l => ({code: l.code, sport: l.sport || "kos", model: l.model || "points", name: l.name, flag: l.flag, country: l.country, hasOdds: l.hasOdds,
           accuracy: l.accuracy, teams: l.teams, table: l.table})),
         fixtures: B.fixtures.map(f => ({...f, lines: basketLines(f)})),
       },

@@ -9,12 +9,14 @@ import sys
 
 import basket as K
 import espn_soccer as E
+import sports2 as S2
 import model as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "web", "data.json")
 ACCURACY = os.path.join(HERE, "tocnost.json")
 ACCURACY_BASKET = os.path.join(HERE, "tocnost_kosarka.json")
+ACCURACY_OTHER = os.path.join(HERE, "tocnost_ostalo.json")
 RESULT_DAYS = 150  # koliko unazad čuvamo rezultate za provjeru tiketa
 
 
@@ -91,6 +93,13 @@ def build(force=False, out=OUT):
     }
     try:
         data["basket"] = K.build(today, force, load_accuracy(ACCURACY_BASKET)["leagues"])
+        for l in data["basket"]["leagues"]:
+            l.setdefault("sport", "kos"); l.setdefault("model", "points")
+        # hokej i tenis idu u isti dio podataka ("ostali sportovi")
+        extra = S2.build(today, force, load_accuracy(ACCURACY_OTHER)["leagues"])
+        for k in ("leagues", "fixtures", "results"):
+            data["basket"][k] += extra[k]
+        data["basket"]["fixtures"].sort(key=lambda f: f["utc"])
     except Exception as e:  # košarka ne smije srušiti nogomet
         print("  ! Košarka nije uspjela:", e)
     os.makedirs(os.path.dirname(out), exist_ok=True)

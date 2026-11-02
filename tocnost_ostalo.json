@@ -1,0 +1,21 @@
+{
+ "made": "2026-11-02",
+ "leagues": {
+  "NHL": {
+   "n": 1163,
+   "hitModel": 0.5288,
+   "hitHome": 0.5211,
+   "logLoss": 0.6917
+  },
+  "ATP": {
+   "n": 1763,
+   "hitModel": 0.6251,
+   "logLoss": 0.6552
+  },
+  "WTA": {
+   "n": 3024,
+   "hitModel": 0.6346,
+   "logLoss": 0.6404
+  }
+ }
+}
