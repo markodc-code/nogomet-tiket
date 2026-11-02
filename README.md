@@ -19,3 +19,7 @@ Otvori adresu stranice u Safariju, pa Dijeli → **Dodaj na početni zaslon**. T
 ## Provjera točnosti
 
 `python backtest.py` za svaku ligu na prošloj sezoni računa šanse samo iz utakmica odigranih prije svake runde i uspoređuje ih sa stvarnim rezultatima i s kvotama. Rezultat ide u `tocnost.json`, iz kojeg se za svaku ligu uzima koliko se oslanjamo na kvote. Pokreni ga jednom po sezoni.
+
+## Košarka
+
+`basket.py` skida NBA (ESPN: rezultati, raspored i kvote DraftKings) i Euroligu (službeni API Eurolige: rezultati i raspored, bez kvota) i računa model očekivanih poena. `python basket.py` radi provjeru na prošloj sezoni i sprema `tocnost_kosarka.json`.
