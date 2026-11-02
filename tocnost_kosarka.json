@@ -1,0 +1,17 @@
+{
+ "made": "2026-11-02",
+ "leagues": {
+  "NBA": {
+   "n": 1075,
+   "hitModel": 0.6958,
+   "hitHome": 0.5498,
+   "logLoss": 0.6051
+  },
+  "EL": {
+   "n": 352,
+   "hitModel": 0.6534,
+   "hitHome": 0.6477,
+   "logLoss": 0.6225
+  }
+ }
+}

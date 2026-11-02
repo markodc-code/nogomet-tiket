@@ -7,17 +7,19 @@ import json
 import os
 import sys
 
+import basket as K
 import model as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "web", "data.json")
 ACCURACY = os.path.join(HERE, "tocnost.json")
+ACCURACY_BASKET = os.path.join(HERE, "tocnost_kosarka.json")
 RESULT_DAYS = 150  # koliko unazad čuvamo rezultate za provjeru tiketa
 
 
-def load_accuracy():
+def load_accuracy(path=ACCURACY):
     try:
-        with open(ACCURACY, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {"leagues": {}}
@@ -77,6 +79,10 @@ def build(force=False, out=OUT):
         "fixtures": upcoming,
         "results": results,
     }
+    try:
+        data["basket"] = K.build(today, force, load_accuracy(ACCURACY_BASKET)["leagues"])
+    except Exception as e:  # košarka ne smije srušiti nogomet
+        print("  ! Košarka nije uspjela:", e)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     tmp = out + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

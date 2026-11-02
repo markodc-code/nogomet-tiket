@@ -4,6 +4,8 @@
 
 const Engine = (() => {
   let D = null, L = {}, where = {}, byNorm = {}, alias = {}, fixByPair = {}, resultsByPair = {};
+  // košarka
+  let B = {leagues: [], fixtures: [], results: []}, BL = {}, BI = {byNorm: {}, alias: {}, where: {}}, bFix = {}, bRes = {};
 
   const BET_LABELS = {
     "1": "1 (pobjeda domaćina)", "X": "X (neriješeno)", "2": "2 (pobjeda gosta)",
@@ -36,6 +38,19 @@ const Engine = (() => {
       if (!resultsByPair[k]) resultsByPair[k] = [];
       resultsByPair[k].push([d, hg, ag]);
     }
+    B = D.basket || {leagues: [], fixtures: [], results: []};
+    BL = {}; BI = {byNorm: {}, alias: {}, where: {}}; bFix = {}; bRes = {};
+    for (const lg of B.leagues) {
+      BL[lg.code] = lg;
+      for (const t of lg.teams) { BI.where[t] = lg.code; BI.byNorm[norm(t)] = t; }
+      for (const [k, v] of Object.entries(lg.aliases || {})) BI.alias[norm(k)] = v;
+    }
+    for (const f of B.fixtures) {
+      const k = new Date(f.utc);
+      f.iso = localIsoD(k); f.time = `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`;
+      if (!bFix[f.home + "|" + f.away]) bFix[f.home + "|" + f.away] = f;
+    }
+    for (const [d, lg, h, a, hs, as] of B.results) (bRes[h + "|" + a] = bRes[h + "|" + a] || []).push([d, hs, as]);
     return D;
   }
 
@@ -139,7 +154,9 @@ const Engine = (() => {
     }
     return 2 * prev[m] / (n + m);
   }
-  function findTeam(text) {
+  const findTeam = text => findIn({byNorm, alias, where}, text);
+  function findIn(ix, text) {
+    const {byNorm, alias, where} = ix;
     const q = norm(text || "");
     if (!q) return null;
     if (byNorm[q]) return byNorm[q];
@@ -201,7 +218,7 @@ const Engine = (() => {
   }
 
   function evaluateTicket(legs) {
-    const res = legs.slice(0, 30).map(evaluateLeg), ok = res.filter(r => !r.error), total = {legs: ok.length};
+    const res = legs.slice(0, 30).map(l => l.sport === "kos" ? evaluateBasketLeg(l) : evaluateLeg(l)), ok = res.filter(r => !r.error), total = {legs: ok.length};
     if (ok.length) {
       const p = ok.reduce((x, r) => x * r.p, 1);
       Object.assign(total, {p, fairOdds: p > 0 ? 1 / p : null});
@@ -211,6 +228,110 @@ const Engine = (() => {
       total.duplicate = new Set(pairs).size !== pairs.length;
     }
     return {legs: res, total};
+  }
+
+  // ------------------------------------------------------------ košarka
+  // Očekivani poeni iz modela; za NBA se razlika, zbroj i pobjednik kombiniraju s kvotama.
+  const localIsoD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const PHI = x => { // normalna razdioba (Abramowitz-Stegun)
+    const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2);
+    const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    return x > 0 ? 1 - p : p;
+  };
+  const fmtLine = x => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toLocaleString("hr-HR");
+  function basketLabel(bet) {
+    const [k, v] = String(bet).split(":"), x = v != null ? parseFloat(v) : null;
+    if (k === "1") return "1 (pobjeda domaćina)";
+    if (k === "2") return "2 (pobjeda gosta)";
+    if (k === "H1") return `Hendikep domaćin ${fmtLine(x)}`;
+    if (k === "H2") return `Hendikep gost ${fmtLine(x)}`;
+    if (k === "O") return `Više od ${x.toLocaleString("hr-HR")} poena`;
+    if (k === "U") return `Manje od ${x.toLocaleString("hr-HR")} poena`;
+    return bet;
+  }
+  function basketExpect(lg, h, a, fx) {
+    const mh = lg.mu + lg.home + (lg.off[h] || 0) - (lg.def[a] || 0);
+    const ma = lg.mu - lg.home + (lg.off[a] || 0) - (lg.def[h] || 0);
+    const mm = mh - ma, mt = mh + ma, o = (fx && fx.odds) || {}, w = lg.weight || 0;
+    let margin = mm, total = mt, market = false;
+    if (w > 0 && o.spread != null) { margin = (1 - w) * mm + w * -o.spread; market = true; }
+    if (w > 0 && o.total != null) { total = (1 - w) * mt + w * o.total; market = true; }
+    let pHome = PHI(margin / lg.sdM), pHomeModel = PHI(mm / lg.sdM), pHomeMarket = null;
+    if (o["1"] && o["2"]) {
+      const a1 = 1 / o["1"], a2 = 1 / o["2"]; pHomeMarket = a1 / (a1 + a2);
+      if (w > 0) { pHome = (1 - w) * pHome + w * pHomeMarket; market = true; }
+    }
+    return {margin, total, mm, mt, pHome, pHomeModel, pHomeMarket, market, sdM: lg.sdM, sdT: lg.sdT};
+  }
+  // Linije za ponudu: kladionice (NBA) ili najbliža ".5" vrijednost modela (Euroliga).
+  function basketLines(f) {
+    const lg = BL[f.league], o = f.odds || {};
+    const e = basketExpect(lg, f.home, f.away, f);
+    const spread = o.spread != null ? o.spread : -(Math.floor(e.margin) + 0.5);
+    const total = o.total != null ? o.total : Math.floor(e.total) + 0.5;
+    return {spread, total, market: o.spread != null};
+  }
+  function basketProb(e, bet) {
+    const [k, v] = String(bet).split(":"), x = parseFloat(v);
+    if (k === "1") return e.pHome;
+    if (k === "2") return 1 - e.pHome;
+    if (k === "H1") return PHI((e.margin + x) / e.sdM);
+    if (k === "H2") return PHI((x - e.margin) / e.sdM);
+    if (k === "O") return 1 - PHI((x - e.total) / e.sdT);
+    if (k === "U") return PHI((x - e.total) / e.sdT);
+    throw new Error("Nepoznata košarkaška oklada: " + bet);
+  }
+  // Šansa za gumb u ponudi (bez kvote kladionica, npr. Euroliga).
+  function basketProbFor(f, bet) {
+    const lg = BL[f.league]; if (!lg) return null;
+    return basketProb(basketExpect(lg, f.home, f.away, f), bet);
+  }
+  function settleBasket(bet, hs, as) {
+    const [k, v] = String(bet).split(":"), x = parseFloat(v);
+    if (k === "1") return hs > as;
+    if (k === "2") return as > hs;
+    if (k === "H1") return hs - as + x > 0;
+    if (k === "H2") return as - hs + x > 0;
+    if (k === "O") return hs + as > x;
+    if (k === "U") return hs + as < x;
+    throw new Error("Nepoznata košarkaška oklada: " + bet);
+  }
+  function marketPair(o, bet, lines) {
+    const [k, v] = String(bet).split(":"), x = parseFloat(v);
+    const pair = (a, b) => (o[a] && o[b]) ? (1 / o[a]) / (1 / o[a] + 1 / o[b]) : null;
+    if (k === "1") return pair("1", "2");
+    if (k === "2") return pair("2", "1");
+    if (k === "H1" && lines.market && x === o.spread) return pair("H1", "H2");
+    if (k === "H2" && lines.market && x === -o.spread) return pair("H2", "H1");
+    if (k === "O" && x === o.total) return pair("O", "U");
+    if (k === "U" && x === o.total) return pair("U", "O");
+    return null;
+  }
+  function evaluateBasketLeg(leg) {
+    const h = findIn(BI, leg.home), a = findIn(BI, leg.away);
+    if (!h || !a) return {error: `Ne prepoznajem momčad „${!h ? leg.home : leg.away}“.`};
+    if (h === a) return {error: "Domaćin i gost su ista momčad."};
+    if (BI.where[h] !== BI.where[a]) return {error: `${h} i ${a} nisu u istoj ligi.`};
+    const lg = BL[BI.where[h]], fx = bFix[h + "|" + a], bet = String(leg.bet || "1").trim();
+    const e = basketExpect(lg, h, a, fx);
+    const lines = fx ? basketLines(fx) : {spread: -(Math.floor(e.margin) + 0.5), total: Math.floor(e.total) + 0.5, market: false};
+    let p, pModel;
+    try {
+      p = basketProb(e, bet);
+      pModel = basketProb({...e, margin: e.mm, total: e.mt, pHome: e.pHomeModel}, bet);
+    } catch (err) { return {error: err.message}; }
+    let odds = leg.odds === undefined || leg.odds === null || leg.odds === "" ? null : parseFloat(String(leg.odds).replace(",", "."));
+    if (!(odds > 0)) odds = null;
+    const row = t => { const i = lg.table.findIndex(r => r.team === t); return i < 0 ? null : {pos: i + 1, ...lg.table[i]}; };
+    const half = e.total / 2;
+    return {
+      sport: "kos", home: h, away: a, league: lg.code, leagueName: lg.name, flag: lg.flag, accuracy: lg.accuracy, bet,
+      betLabel: basketLabel(bet), p, pModel, pMarket: fx ? marketPair(fx.odds || {}, bet, lines) : null,
+      source: e.market ? "model+kladionice" : "model", fairOdds: p > 0 ? 1 / p : null, odds, value: odds ? p * odds - 1 : null,
+      points: [half + e.margin / 2, half - e.margin / 2], margin: e.margin, total: e.total, lines,
+      basic: {"1": e.pHome, "2": 1 - e.pHome},
+      date: fx ? fx.iso : null, time: fx ? fx.time : null, homeRow: row(h), awayRow: row(a),
+    };
   }
 
   // ------------------------------------------------------------ spremljeni tiketi (na ovom uređaju)
@@ -225,7 +346,7 @@ const Engine = (() => {
     const t = {
       id: now.getTime().toString(36) + Math.random().toString(36).slice(2, 6),
       created: now.toISOString().slice(0, 19), stake, p: ev.total.p, odds: ev.total.odds ?? null,
-      legs: legs.map(r => ({home: r.home, away: r.away, league: r.league, bet: r.bet, betLabel: r.betLabel, p: r.p, odds: r.odds, date: r.date})),
+      legs: legs.map(r => ({home: r.home, away: r.away, league: r.league, bet: r.bet, betLabel: r.betLabel, p: r.p, odds: r.odds, date: r.date, sport: r.sport || "nog"})),
     };
     const all = loadTickets(); all.push(t);
     return storeTickets(all) ? {ok: true, id: t.id} : {error: "Preglednik ne dopušta spremanje (privatni način?)."};
@@ -234,7 +355,7 @@ const Engine = (() => {
 
   const dayDiff = (a, b) => Math.round((new Date(a) - new Date(b)) / 864e5);
   function findResult(leg, created) {
-    let games = resultsByPair[leg.home + "|" + leg.away] || [];
+    let games = (leg.sport === "kos" ? bRes : resultsByPair)[leg.home + "|" + leg.away] || [];
     games = leg.date ? games.filter(g => Math.abs(dayDiff(g[0], leg.date)) <= 2)
                      : games.filter(g => dayDiff(g[0], created) >= -1);
     return games.length ? games.slice().sort()[0] : null;
@@ -248,7 +369,7 @@ const Engine = (() => {
         const g = findResult(leg, created);
         if (g) {
           leg.score = `${g[1]}:${g[2]}`; leg.playedOn = g[0];
-          try { leg.status = settleBet(leg.bet, g[1], g[2]) ? "won" : "lost"; } catch { leg.status = "pending"; }
+          try { leg.status = (leg.sport === "kos" ? settleBasket : settleBet)(leg.bet, g[1], g[2]) ? "won" : "lost"; } catch { leg.status = "pending"; }
         } else leg.status = "pending";
         if (leg.status === "lost") status = "lost";
         else if (leg.status === "pending" && status !== "lost") status = "pending";
@@ -350,6 +471,11 @@ const Engine = (() => {
       leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country,
         weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
+      basket: {
+        leagues: B.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, hasOdds: l.hasOdds,
+          accuracy: l.accuracy, teams: l.teams, table: l.table})),
+        fixtures: B.fixtures.map(f => ({...f, lines: basketLines(f)})),
+      },
       fixtures: D.fixtures, bets: Object.entries(BET_LABELS).map(([code, label]) => ({code, label})),
       lastResult: D.lastResult, builtAt: D.builtAt, seasons: D.seasons,
     };
@@ -378,5 +504,5 @@ const Engine = (() => {
     return added;
   }
 
-  return {api, exportTickets, importTickets, hrTime, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, _test: {findTeam, settleBet, matrix, betProbability}};
 })();
