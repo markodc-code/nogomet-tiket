@@ -245,6 +245,29 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
 
 <datalist id="teams"></datalist>
 
+<script>
+// Ako se nešto pokvari (npr. stari preglednik), pokaži grešku umjesto praznog ekrana.
+(function () {
+  var shown = false;
+  function show(msg) {
+    if (shown) return; shown = true;
+    var box = document.createElement("div");
+    box.setAttribute("style", "position:fixed;left:12px;right:12px;bottom:12px;z-index:99;background:#b4382f;color:#fff;padding:14px;border-radius:12px;font:14px/1.4 system-ui,sans-serif");
+    box.innerHTML = "<b>Aplikacija se nije učitala kako treba.</b><br>Greška: " + String(msg).replace(/</g, "&lt;") +
+      "<br><br><button id='ntReset' style='padding:8px 12px;border-radius:8px;border:0;font:inherit'>Obriši spremljenu verziju i učitaj ponovno</button>";
+    document.body.appendChild(box);
+    document.getElementById("ntReset").onclick = function () {
+      var jobs = [];
+      if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+      Promise.all(jobs).then(function () { location.reload(); }, function () { location.reload(); });
+    };
+  }
+  window.addEventListener("error", function (e) { show(e.message || "nepoznata"); });
+  window.addEventListener("unhandledrejection", function (e) { show((e.reason && e.reason.message) || e.reason || "nepoznata"); });
+  window.addEventListener("load", function () { setTimeout(function () { if (typeof Engine === "undefined") show("preglednik ne podržava aplikaciju (ažuriraj iOS / Safari)"); }, 3000); });
+})();
+</script>
 <script src="engine.js"></script>
 <script>
 const $ = s => document.querySelector(s);

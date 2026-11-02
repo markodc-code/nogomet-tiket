@@ -31,7 +31,11 @@ const Engine = (() => {
     alias = {};
     for (const [k, v] of Object.entries(D.aliases)) alias[norm(k)] = v;
     for (const f of D.fixtures) fixByPair[f.home + "|" + f.away] = f;
-    for (const [d, h, a, hg, ag] of D.results) (resultsByPair[h + "|" + a] ||= []).push([d, hg, ag]);
+    for (const [d, h, a, hg, ag] of D.results) {
+      const k = h + "|" + a;
+      if (!resultsByPair[k]) resultsByPair[k] = [];
+      resultsByPair[k].push([d, hg, ag]);
+    }
     return D;
   }
 
