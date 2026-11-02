@@ -33,7 +33,11 @@ LEAGUE_INFO = {
     "SC1": ("Championship", "SCO", "Škotska", "SC0"),
     "SC2": ("League One", "SCO", "Škotska", "SC1"),
     "SC3": ("League Two", "SCO", "Škotska", "SC2"),
+    "HR1": ("SuperSport HNL", "CRO", "Hrvatska", None),
+    "HR2": ("Prva NL", "CRO", "Hrvatska", "HR1"),
 }
+# lige koje ne dolaze s football-data.co.uk (vidi hrv.py)
+EXTERNAL = ("HR1", "HR2")
 LEAGUES = {c: v[0] for c, v in LEAGUE_INFO.items()}
 LEAGUE_FLAGS = {c: v[1] for c, v in LEAGUE_INFO.items()}
 LEAGUE_COUNTRY = {c: v[2] for c, v in LEAGUE_INFO.items()}
@@ -137,6 +141,8 @@ def load_all(force=False, count=3):
     seasons = season_codes(count=count)
     leagues = {}
     for code in LEAGUES:
+        if code in EXTERNAL:
+            continue
         per_season = []
         for s in seasons:
             p = _download(f"{BASE}/mmz4281/{s}/{code}.csv",
@@ -166,6 +172,16 @@ def load_all(force=False, count=3):
                          (("1", "AvgH"), ("X", "AvgD"), ("2", "AvgA"),
                           ("O2.5", "Avg>2.5"), ("U2.5", "Avg<2.5"))},
             })
+    # hrvatske lige (TheSportsDB)
+    try:
+        import hrv
+        hl, hf = hrv.load(force=force, count=count)
+        leagues.update(hl)
+        fixtures += hf
+    except Exception as e:
+        print("  ! Hrvatske lige nisu uspjele:", e)
+    for code in EXTERNAL:
+        leagues.setdefault(code, [[] for _ in seasons])
     return leagues, fixtures, seasons
 
 
@@ -307,6 +323,8 @@ def build_models(leagues, today=None, offset=0, season_teams=None, codes=None):
     out = {}
     for c in codes or leagues:
         seasons = leagues[c][offset:]
+        if sum(len(x) for x in seasons) < 30:   # nema dovoljno podataka (npr. izvor trenutno nedostupan)
+            continue
         up = LEAGUE_INFO[c][3]
         upper_last = set()
         if up and up in leagues and len(leagues[up]) > offset + 1:

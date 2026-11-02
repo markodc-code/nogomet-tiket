@@ -857,6 +857,12 @@ const Engine = (() => {
 
   // Zadnje utakmice kluba (nogomet): sve, kod kuće i u gostima, najnovije prve.
   function teamForm(team, n = 5) {
+    // potpuna forma iz svih natjecanja (domaća liga + Europa), isti klub pod različitim imenima
+    const name = (D.formAlias || {})[team] || team, full = (D.form || {})[name];
+    if (full && full.length) {
+      const games = full.map(([d, opp, home, gf, ga]) => ({date: d, home: !!home, opponent: opp, gf, ga, res: gf > ga ? "W" : gf === ga ? "D" : "L"}));
+      return {last: games.slice(0, n), home: games.filter(g => g.home).slice(0, n), away: games.filter(g => !g.home).slice(0, n)};
+    }
     const games = (byTeam[team] || []).slice().sort((x, y) => y[0].localeCompare(x[0])).map(([d, h, a, hg, ag]) => {
       const home = h === team, gf = home ? hg : ag, ga = home ? ag : hg;
       return {date: d, home, opponent: home ? a : h, gf, ga, res: gf > ga ? "W" : gf === ga ? "D" : "L"};

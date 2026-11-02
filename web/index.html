@@ -187,6 +187,8 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-nu
 th, td { padding: 9px 4px; text-align: right; border-bottom: .5px solid var(--line); }
 th:nth-child(2), td:nth-child(2) { text-align: left; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+img.flg { width: 18px; height: 13px; object-fit: cover; border-radius: 3px; vertical-align: -1px; margin-right: 3px;
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.25); }
 .form { display: inline-flex; gap: 2px; vertical-align: middle; }
 .form span { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center;
   font-size: 10.5px; font-weight: 800; color: #fff; }
@@ -728,7 +730,7 @@ function legRow(l) {
   const isScore = /^R/i.test(l.bet);
   const r = RES[l.id];
   const teams = l.fx
-    ? `<div class="leg-teams"><b>${esc(l.home)}</b><b>${esc(l.away)}</b><small>${l.time ? esc(l.time) + " · " : ""}${r && r.leagueName ? esc(r.flag + " " + r.leagueName) : ""}</small></div>`
+    ? `<div class="leg-teams"><b>${esc(l.home)}</b><b>${esc(l.away)}</b><small>${l.time ? esc(l.time) + " · " : ""}${r && r.leagueName ? (flagImg(r.flag) ? flagImg(r.flag) + " " + esc(r.leagueName) : esc(r.flag + " " + r.leagueName)) : ""}</small></div>`
     : `<div class="leg-in"><input class="field" list="teams" placeholder="Domaćin" value="${esc(l.home)}" data-f="home" autocomplete="off">
         <input class="field" list="teams" placeholder="Gost" value="${esc(l.away)}" data-f="away" autocomplete="off"></div>`;
   return `<div class="leg" data-id="${l.id}">
@@ -921,6 +923,14 @@ function miniForm(form) { return form ? formHTML(form).replace('class="form"', '
 function footballForm(team) { return Engine.teamForm(team).last.slice().reverse().map(g => g.res).join(""); }
 function tableForm(lg, team) { const r = (lg.table || []).find(x => x.team === team); return r ? r.form : ""; }
 const teamLine = (name, form) => `<div class="tn"><span>${esc(name)}</span>${miniForm(form)}</div>`;
+// zastavice država uz lige (slika radi svugdje, emoji za padajući izbornik)
+const FLAG_ISO = {ENG: "gb-eng", SCO: "gb-sct", ESP: "es", ITA: "it", GER: "de", FRA: "fr", NED: "nl", POR: "pt", BEL: "be",
+  TUR: "tr", GRE: "gr", CRO: "hr", USA: "us", EUR: "eu"};
+const tagFlag = t => String.fromCodePoint(0x1F3F4, ...[...t].map(c => 0xE0000 + c.charCodeAt(0)), 0xE007F);
+const flagEmoji = code => code === "ENG" ? tagFlag("gbeng") : code === "SCO" ? tagFlag("gbsct")
+  : FLAG_ISO[code] ? [...FLAG_ISO[code].toUpperCase()].map(c => String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))).join("") : "";
+const flagImg = code => FLAG_ISO[code] ? `<img class="flg" src="https://flagcdn.com/${FLAG_ISO[code]}.svg" alt="${esc(code)}" loading="lazy">` : "";
+const lgTitle = lg => flagImg(lg.flag) ? `${flagImg(lg.flag)} ${esc(lg.name)}` : `${esc(lg.flag)} · ${esc(lg.name)}`;
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
@@ -1094,7 +1104,7 @@ function renderSide() {
       `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "";
   const select = (list, counts) => {
     const groups = [...new Set(list.map(l => l.country))];
-    const label = l => (l.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[l.code] || "") + l.name : l.flag + " · " + l.name) + (counts ? ` (${counts[l.code]})` : "");
+    const label = l => (l.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[l.code] || "") + l.name : (flagEmoji(l.flag) ? flagEmoji(l.flag) + " " : l.flag + " · ") + l.name) + (counts ? ` (${counts[l.code]})` : "");
     return groups.map(c => `<optgroup label="${esc(c)}">${list.filter(l => l.country === c).map(l => opt(l.code, label(l))).join("")}</optgroup>`).join("");
   };
 
@@ -1146,7 +1156,7 @@ function renderSide() {
   const order = [...lgs.filter(l => l.uefa), ...lgs.filter(l => !l.uefa)].map(l => l.code).filter(c => byLg[c]);
   $("#side").innerHTML = order.map(c => {
     const lg = leagueOf(c);
-    return `<div class="lghead lg-${esc(c)}">${lg.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[c] || "") + esc(lg.name) : esc(lg.flag) + " · " + esc(lg.name)}</div>` + byLg[c].map(f => {
+    return `<div class="lghead lg-${esc(c)}">${lg.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[c] || "") + esc(lg.name) : lgTitle(lg)}</div>` + byLg[c].map(f => {
       const leg = legFor(f.home, f.away), i = INIT.fixtures.indexOf(f);
       return `<div class="fx">
         <div class="fx-top"><span class="fx-time">${Engine.hrTime(f)}</span>
@@ -1251,7 +1261,7 @@ function renderBasket() {
   $("#side").innerHTML = fx.map(f => {
     const leg = legFor(f.home, f.away, sport), i = BK.fixtures.indexOf(f);
     const group = f.tournament ? `${f.tournament}` : `${lg.flag} · ${lg.name}`;
-    const head = group !== lastGroup ? `<div class="lghead">${esc(group)}</div>` : ""; lastGroup = group;
+    const head = group !== lastGroup ? `<div class="lghead">${f.tournament ? esc(group) : lgTitle(lg)}</div>` : ""; lastGroup = group;
     return `${head}<div class="fx">
       <div class="fx-top"><span class="fx-time">${esc(f.time)}</span>
         <div class="fx-teams">${teamLine(f.home, tableForm(lg, f.home))}${teamLine(f.away, tableForm(lg, f.away))}${f.round ? `<div class="sub" style="font-weight:400">${esc(f.round)}</div>` : ""}</div></div>

@@ -11,6 +11,7 @@ import basket as K
 import espn_soccer as E
 import sports2 as S2
 import uefa as U
+import forms as FO
 import model as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,8 +44,10 @@ def build(force=False, out=OUT):
     played_pairs_recent = {(h, a) for (h, a, d) in played if (today - d).days < 3}
     upcoming = []
     for f in fixtures:
-        d = M._date(f["date"])
-        mdl = models[f["league"]]
+        d = M._date(f["date"]) if "date" in f else dt.date.fromisoformat(f["iso"])
+        mdl = models.get(f["league"])
+        if not mdl:
+            continue
         if d and d >= today and (f["home"], f["away"]) not in played_pairs_recent \
                 and f["home"] in mdl.att and f["away"] in mdl.att:
             upcoming.append({"league": f["league"], "iso": d.isoformat(), "time": f["time"],
@@ -98,6 +101,12 @@ def build(force=False, out=OUT):
     data["fixtures"] = sorted(data["fixtures"] + u_fix, key=lambda f: (f["iso"], f["time"], f["league"]))
     data["results"] = sorted(data["results"] + u_res)
     data["uefa"] = [l["code"] for l in u_leagues]
+    # forma klubova iz svih natjecanja (isti klub pod različitim imenima povezan u jedno)
+    try:
+        form, alias = FO.build(leagues, U.load(today, force), today, force)
+        data["form"], data["formAlias"] = form, alias
+    except Exception as e:
+        print("  ! Forma nije uspjela:", e)
     try:
         data["basket"] = K.build(today, force, load_accuracy(ACCURACY_BASKET)["leagues"])
         for l in data["basket"]["leagues"]:
