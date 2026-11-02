@@ -185,7 +185,8 @@ def load_tennis(today, force=False, days_back=800):
                         if len(comp) != 2:
                             continue
                         names = [x.get("athlete", {}).get("displayName") for x in comp]
-                        if not all(names):
+                        # protivnik još nepoznat ("TBD", kvalifikant) - preskoči
+                        if not all(names) or any(n.strip().upper() in ("TBD", "TBA", "BYE") or n.lower().startswith("qualifier") for n in names):
                             continue
                         st = c["status"]["type"]
                         when = K._utc(c["date"])

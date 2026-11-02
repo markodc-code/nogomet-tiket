@@ -504,10 +504,14 @@ const Engine = (() => {
     const bo = (fx && fx.bo) || (leg.lines && leg.lines.bo) || 3, pm = tennisMatchP(lg, h, a);
     let p;
     try { p = tennisBetP(pm, bo, bet); } catch (e) { return {error: e.message}; }
-    return otherResult(leg, lg, h, a, fx, bet, "ten", p, p, null, false, {
+    const r = otherResult(leg, lg, h, a, fx, bet, "ten", p, p, null, false, {
       elo: [lg.elo[h] ?? null, lg.elo[a] ?? null], basic: {"1": pm, "2": 1 - pm}, bo, lines: {bo},
       tournament: fx && fx.tournament, round: fx && fx.round,
     });
+    // ime igrača umjesto "prvi/drugi igrač"
+    if (bet === "1") r.betLabel = `Pobjeda: ${h}`;
+    if (bet === "2") r.betLabel = `Pobjeda: ${a}`;
+    return r;
   }
 
   function otherResult(leg, lg, h, a, fx, bet, sport, p, pModel, pMarket, market, extra) {
@@ -634,72 +638,82 @@ const Engine = (() => {
   // Kad za utakmicu nema kvota, kvotu procjenjujemo iz šanse uz tipičnu maržu kladionica (~6 %).
   const EST_MARGIN = 0.94;
   const estOdds = p => Math.round(EST_MARGIN / p * 100) / 100;
+  // Svi tipovi oklada iz ponude, sa stvarnom kvotom gdje postoji (inače procjena iz šanse).
   function candidates(item) {
-    const f = item.f, out = [];
+    const f = item.f, out = [], o = f.odds || {};
+    const add = (bet, p, odds) => { if (p > 0.02 && p < 0.98) out.push({bet, p, odds: odds || estOdds(p), est: !odds}); };
+    const dbl = (a, b) => o[a] && o[b] ? Math.round(100 / (1 / o[a] + 1 / o[b])) / 100 : null;
     if (item.sport === "hok") {
-      const L = basketLines(f), o = f.odds || {};
-      for (const [bet, odds] of [["1", null], ["X", null], ["2", null], ["1OT", o["1OT"]], ["2OT", o["2OT"]],
-        [`O:${L.total}`, L.market ? o.O : null], [`U:${L.total}`, L.market ? o.U : null]]) {
-        const p = basketProbFor(f, bet);
-        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
-      }
+      const L = basketLines(f);
+      for (const [bet, odds] of [["1"], ["X"], ["2"], ["1X"], ["X2"], ["12"], ["1OT", o["1OT"]], ["2OT", o["2OT"]],
+        [`O:${L.total}`, L.market ? o.O : null], [`U:${L.total}`, L.market ? o.U : null]]) add(bet, basketProbFor(f, bet), odds);
     } else if (item.sport === "ten") {
-      for (const bet of ["1", "2"]) {
-        const p = basketProbFor(f, bet);
-        if (p > 0) out.push({bet, p, odds: estOdds(p), est: true});
-      }
+      const bo = f.bo || 3, line = bo === 5 ? 3.5 : 2.5;
+      const sets = bo === 5 ? ["3:0", "3:1", "3:2", "2:3", "1:3", "0:3"] : ["2:0", "2:1", "1:2", "0:2"];
+      for (const bet of ["1", "2", ...sets.map(x => "S:" + x), `SO:${line}`, `SU:${line}`]) add(bet, basketProbFor(f, bet));
     } else if (item.sport === "kos") {
-      const L = basketLines(f), o = f.odds || {};
+      const L = basketLines(f);
       for (const [bet, odds] of [["1", o["1"]], ["2", o["2"]], [`H1:${L.spread}`, L.market ? o.H1 : null],
-        [`H2:${-L.spread}`, L.market ? o.H2 : null], [`O:${L.total}`, o.total === L.total ? o.O : null], [`U:${L.total}`, o.total === L.total ? o.U : null]]) {
-        const p = basketProbFor(f, bet);
-        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
-      }
+        [`H2:${-L.spread}`, L.market ? o.H2 : null], [`O:${L.total}`, o.total === L.total ? o.O : null], [`U:${L.total}`, o.total === L.total ? o.U : null],
+        [`DO:${L.home}`], [`DU:${L.home}`], [`GO:${L.away}`], [`GU:${L.away}`]]) add(bet, basketProbFor(f, bet), odds);
     } else {
       const pr = fixtureProbs(f);
-      for (const [bet, key] of MARKETS) {
-        const p = pr[bet], odds = f.odds[key];
-        if (p > 0) out.push({bet, p, odds: odds || estOdds(p), est: !odds});
-      }
+      for (const [bet, odds] of [["1", o["1"]], ["X", o.X], ["2", o["2"]], ["1X", dbl("1", "X")], ["X2", dbl("X", "2")], ["12", dbl("1", "2")],
+        ["GG"], ["NG"], ["3+", o["O2.5"]], ["0-2", o["U2.5"]]]) add(bet, pr[bet], odds);
     }
     return out;
+  }
+  // Vrsta oklade, da se prijedlozi ne svode na istu (npr. svugdje "pobjeda").
+  function betFamily(sport, bet) {
+    const k = String(bet).split(":")[0];
+    if (["1", "2", "1OT", "2OT"].includes(k)) return "pobjednik";
+    if (["1X", "X2", "12"].includes(k)) return "dupla";
+    if (k === "X") return "nerijeseno";
+    if (["GG", "NG"].includes(k)) return "golovi-oba";
+    if (["3+", "0-2", "O", "U"].includes(k)) return "ukupno";
+    if (["H1", "H2"].includes(k)) return "hendikep";
+    if (["DO", "DU", "GO", "GU"].includes(k)) return "momcad-poeni";
+    if (k === "S") return "setovi-rezultat";
+    if (["SO", "SU"].includes(k)) return "setovi-broj";
+    return k;
   }
   // Filter: ili kvota barem minOdds, ili šansa u rasponu (maxP - 10 %, maxP].
   const BAND = 0.10;
   function pickFrom(pool, minOdds, maxP, count, spread) {
     const minP = maxP < 1 ? maxP - BAND : 0;
-    const best = [];
+    // kandidati: za svaku utakmicu nekoliko najboljih oklada koje prolaze filter
+    const cands = [];
     for (const item of pool) {
-      let top = null;
-      for (const c of candidates(item)) {
-        if (c.odds >= minOdds && c.p <= maxP && c.p > minP && (!top || c.p > top.p)) top = c;
-      }
-      if (!top) continue;
-      const f = item.f, leg = {home: f.home, away: f.away, bet: top.bet, odds: top.odds, sport: item.sport};
+      candidates(item).filter(c => c.odds >= minOdds && c.p <= maxP && c.p > minP)
+        .sort((a, b) => b.p - a.p).slice(0, 5).forEach(c => cands.push({item, c, fam: betFamily(item.sport, c.bet), date: localIso(item.k)}));
+    }
+    cands.sort((a, b) => b.c.p - a.c.p);
+
+    // Pravila raznolikosti: svaki sport zastupljen (bar 1, uz 10 parova bar 2), ista vrsta oklade
+    // najviše trećina prijedloga, tjedni raspoređen kroz dane (najviše trećina isti dan),
+    // jedna oklada po utakmici. Ako nema dovoljno, pravila se postupno opuštaju.
+    const cap = Math.max(1, Math.ceil(count / 3)), quota = count >= 10 ? 2 : 1, dayCap = spread ? cap : Infinity;
+    const chosen = [], usedFx = new Set(), perDay = {}, perFam = {};
+    const ok = (x, famOn, dayOn) => !usedFx.has(x.item) && (!famOn || (perFam[x.fam] || 0) < cap) && (!dayOn || (perDay[x.date] || 0) < dayCap);
+    const take = x => { chosen.push(x); usedFx.add(x.item); perDay[x.date] = (perDay[x.date] || 0) + 1; perFam[x.fam] = (perFam[x.fam] || 0) + 1; };
+    for (const sp of [...new Set(cands.map(x => x.item.sport))]) {
+      let n = 0;
+      for (const x of cands) { if (n >= quota || chosen.length >= count) break; if (x.item.sport === sp && ok(x, true, true)) { take(x); n++; } }
+    }
+    for (const [famOn, dayOn] of [[true, true], [true, false], [false, true], [false, false]]) {
+      for (const x of cands) { if (chosen.length >= count) break; if (ok(x, famOn, dayOn)) take(x); }
+    }
+
+    const picks = [];
+    for (const {item, c} of chosen) {
+      const f = item.f, leg = {home: f.home, away: f.away, bet: c.bet, odds: c.odds, sport: item.sport};
       const r = item.sport !== "nog" ? evaluateBasketLeg(leg) : evaluateLeg(leg);
       if (r.error) continue;
-      best.push({...r, sport: item.sport, est: top.est, ev: r.p * top.odds - 1, k: item.k.getTime(),
+      picks.push({...r, odds: c.odds, sport: item.sport, est: c.est, ev: r.p * c.odds - 1, k: item.k.getTime(),
         date: localIso(item.k), time: `${String(item.k.getHours()).padStart(2, "0")}:${String(item.k.getMinutes()).padStart(2, "0")}`,
         lines: item.sport !== "nog" ? basketLines(f) : undefined});
     }
-    best.sort((a, b) => b.p - a.p);
-
-    // Svaki sport mora biti zastupljen (bar 1, a uz 10 parova bar 2), ostatak po šansi.
-    // Tjedni prijedlog k tome raspoređuje parove kroz dane (najviše trećina na isti dan).
-    const sports = [...new Set(best.map(x => x.sport))];
-    const quota = count >= 10 ? 2 : 1, dayCap = spread ? Math.ceil(count / 3) : Infinity;
-    const chosen = [], perDay = {};
-    const take = r => { chosen.push(r); perDay[r.date] = (perDay[r.date] || 0) + 1; };
-    for (const sp of sports) best.filter(r => r.sport === sp).slice(0, quota).forEach(r => { if (chosen.length < count) take(r); });
-    for (const capOn of [true, false]) {
-      for (const r of best) {
-        if (chosen.length >= count) break;
-        if (chosen.includes(r)) continue;
-        if (capOn && (perDay[r.date] || 0) >= dayCap) continue;
-        take(r);
-      }
-    }
-    const picks = chosen.sort((a, b) => a.k - b.k);
+    picks.sort((a, b) => a.k - b.k);
     const total = picks.length ? {p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1)} : null;
     if (total) total.value = total.p * total.odds - 1;
     return {picks, total, considered: pool.length, sports: [...new Set(pool.map(x => x.sport))], minP};
