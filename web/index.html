@@ -174,6 +174,7 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
     <div class="actions">
       <nav class="nav">
         <button data-view="ticket" class="on">Tiket</button>
+        <button data-view="suggest">Prijedlozi</button>
         <button data-view="history">Moji tiketi <span id="navcount"></span></button>
       </nav>
       <button class="btn" id="refresh" title="Ponovno skini rezultate i kvote">Osvježi podatke</button>
@@ -181,6 +182,7 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; }
   </header>
 
   <section id="history" hidden></section>
+  <section id="suggest" hidden></section>
 
   <div class="grid" id="ticketview">
     <section class="card">
@@ -412,9 +414,68 @@ const fmtDate = iso => new Date(iso).toLocaleDateString("hr-HR", {day: "numeric"
 function setView(v) {
   view = v;
   document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
-  $("#ticketview").hidden = v !== "ticket"; $("#history").hidden = v !== "history";
+  $("#ticketview").hidden = v !== "ticket"; $("#history").hidden = v !== "history"; $("#suggest").hidden = v !== "suggest";
   if (v === "history") loadHistory(true);
+  if (v === "suggest") renderSuggest();
 }
+
+/* prijedlozi dana */
+let SUG = null;
+const dayLabel = iso => new Date(iso).toLocaleDateString("hr-HR", {weekday: "short", day: "numeric", month: "numeric"});
+async function renderSuggest() {
+  SUG = await api("/api/suggestions");
+  const el = $("#suggest");
+  if (!SUG.picks.length) {
+    el.innerHTML = `<div class="card empty">Trenutno nema dovoljno objavljenih kvota za prijedloge. Kvote se objavljuju par dana prije utakmica, pa svrati sutra.</div>`;
+    return;
+  }
+  const t = SUG.total;
+  const cards = SUG.picks.map((r, i) => `<div class="tk">
+      <div class="tk-head"><div><b>${i + 1}. ${esc(r.home)} – ${esc(r.away)}</b>
+        <span class="sub">· ${esc(r.leagueName)} · ${dayLabel(r.date)} ${esc(r.time || "")}</span></div>
+        <button class="btn" data-sug="${i}">Dodaj na tiket</button></div>
+      <div class="res-top" style="margin-top:8px"><div class="pct">${pct(r.p)}</div>
+        <div class="bar"><i style="width:${r.p * 100}%"></i></div></div>
+      <div class="chips"><span class="chip">Oklada <b>${esc(r.betLabel)}</b></span>
+        <span class="chip">Kvota <b>${num(r.odds)}</b></span>
+        <span class="chip">Fer kvota <b>${num(r.fairOdds)}</b></span>
+        ${r.pMarket != null ? `<span class="chip">Kladionice <b>${pct(r.pMarket)}</b></span>` : ""}
+        <span class="chip ${r.ev >= 0 ? "good" : ""}">Očekivani povrat <b>${r.ev >= 0 ? "+" : ""}${num(r.ev * 100, 1)} %</b></span></div>
+    </div>`).join("");
+  el.innerHTML = `<div class="hgrid">
+    <div class="card"><h2>Prijedlozi dana</h2>
+      <p class="sub" style="margin-top:-6px">Utakmice ${SUG.from === SUG.to ? dayLabel(SUG.from) : dayLabel(SUG.from) + " – " + dayLabel(SUG.to)} · pregledano ${SUG.considered} utakmica</p>
+      ${cards}</div>
+    <div>
+      <div class="summary" style="margin-top:0"><div class="lbl">Svih ${SUG.picks.length} na jednom tiketu</div>
+        <div class="big">${pct(t.p)}</div>
+        <div class="sumgrid"><div><div class="lbl">Ukupna kvota</div><div class="v">${num(t.odds)}</div></div>
+          <div><div class="lbl">Fer kvota</div><div class="v">${num(1 / t.p)}</div></div></div>
+        <div class="note">Ovakav tiket u prosjeku prolazi <b>1 put od ${Math.round(1 / t.p)}</b>. Sigurnije je igrati ih pojedinačno ili po 2–3.</div>
+        <div class="backup"><button class="btn primary" id="sugAll">Dodaj svih ${SUG.picks.length} na tiket</button></div>
+      </div>
+      <div class="card" style="margin-top:18px"><h2>Kako se biraju</h2>
+        <p class="sub" style="margin:0">Visoka kvota i velika šansa uvijek idu jedna protiv druge, jer kvota je cijena šanse. Zato biramo oklade s najboljim omjerom:
+        gdje je naša procjena šanse najviše iznad onoga što kvota plaća, a šansa je barem 45 %. Iz svake utakmice uzima se najviše jedna oklada.
+        Kvote su prosjek kladionica; u tvojoj kladionici mogu biti malo drukčije. Prijedlozi se mijenjaju svaki put kad se osvježe podaci.</p>
+        <p class="sub">Ako je očekivani povrat negativan, kladionica je i dalje u prednosti; to su samo „najmanje loše“ oklade.</p></div>
+    </div></div>`;
+}
+function addLegs(rs, replace) {
+  if (replace) legs = legs.filter(l => l.home.trim() || l.away.trim());
+  for (const r of rs) {
+    const odds = String(r.odds).replace(".", ",");
+    const empty = legs.find(l => !l.home.trim() && !l.away.trim());
+    if (empty) Object.assign(empty, {home: r.home, away: r.away, bet: r.bet, odds});
+    else legs.push({id: ++uid, home: r.home, away: r.away, bet: r.bet, odds});
+  }
+  renderLegs(); schedule(0); setView("ticket");
+}
+$("#suggest").onclick = e => {
+  const b = e.target.closest("[data-sug]");
+  if (b) return addLegs([SUG.picks[+b.dataset.sug]]);
+  if (e.target.id === "sugAll") addLegs(SUG.picks);
+};
 document.querySelector(".nav").onclick = e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); };
 
 async function loadHistory(render) {

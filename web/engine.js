@@ -282,6 +282,39 @@ const Engine = (() => {
     };
   }
 
+  // ------------------------------------------------------------ prijedlozi dana
+  // Za svaku nadolazeću utakmicu gleda oklade s kvotama (1, X, 2, 3+, 0-2) i bira
+  // one gdje je naša šansa najviše iznad onoga što kvota plaća (očekivani povrat),
+  // uz minimalnu šansu, najviše jednu okladu po utakmici.
+  const MARKETS = [["1", "1"], ["X", "X"], ["2", "2"], ["3+", "O2.5"], ["0-2", "U2.5"]];
+  function suggestions(count = 5, minP = 0.45, days = 3) {
+    if (!D || !D.fixtures.length) return {picks: [], window: null};
+    const first = D.fixtures[0].iso;
+    const until = new Date(new Date(first).getTime() + (days - 1) * 864e5).toISOString().slice(0, 10);
+    let pool = D.fixtures.filter(f => f.iso <= until);
+    if (pool.length < count) pool = D.fixtures;
+    const best = [];
+    for (const f of pool) {
+      let top = null;
+      for (const [bet, key] of MARKETS) {
+        const odds = f.odds[key];
+        if (!odds) continue;
+        const r = evaluateLeg({home: f.home, away: f.away, bet, odds});
+        if (r.error || r.p < minP) continue;
+        const cand = {...r, ev: r.p * odds - 1};
+        if (!top || cand.ev > top.ev) top = cand;
+      }
+      if (top) best.push(top);
+    }
+    best.sort((a, b) => b.ev - a.ev);
+    const picks = best.slice(0, count);
+    const total = picks.length ? {
+      p: picks.reduce((x, r) => x * r.p, 1), odds: picks.reduce((x, r) => x * r.odds, 1),
+    } : null;
+    if (total) total.value = total.p * total.odds - 1;
+    return {picks, total, from: pool[0]?.iso, to: pool[pool.length - 1]?.iso, considered: pool.length};
+  }
+
   function initPayload() {
     return {
       leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, teams: l.teams, table: l.table})),
@@ -296,6 +329,7 @@ const Engine = (() => {
     if (path === "/api/refresh") { await load(true); return initPayload(); }
     if (path === "/api/ticket") return evaluateTicket(body.legs || []);
     if (path === "/api/tickets") return ticketsPayload();
+    if (path === "/api/suggestions") return suggestions();
     if (path === "/api/tickets/save") return saveTicket(body);
     if (path === "/api/tickets/delete") return deleteTicket(String(body.id || ""));
     throw new Error("Nepoznato: " + path);
