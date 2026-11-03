@@ -325,6 +325,7 @@ details[open] summary::after { content: " ‹"; }
 .tk-legs .lost .st { background: #e5352b; color: #fff; box-shadow: 0 3px 8px rgba(229,53,43,.4); }
 .tk-legs .pending .st { border: 2px solid color-mix(in srgb, var(--muted) 45%, transparent); color: transparent; width: 20px; height: 20px; }
 .tk-legs li.won { background: rgba(34,163,74,.10); }
+.tk-legs b.tk-odd { color: var(--ink); font-variant-numeric: tabular-nums; }
 .tk-legs b.live { color: #e5352b; animation: livep 1.4s ease-in-out infinite; }
 @keyframes livep { 50% { opacity: .45; } }
 .tk-legs li.lost { background: rgba(229,53,43,.09); }
@@ -1722,8 +1723,9 @@ function renderHistory() {
         <span class="badge ${t.status}">${ST[t.status][1]}</span></div>
       <ul class="tk-legs">${t.legs.map(l => `<li class="${l.status}"><span class="st">${ST[l.status][0]}</span>
         <span>${esc(l.home)} – ${esc(l.away)}<br><small>${esc(l.betLabel)}</small></span>
-        <span style="text-align:right"><small>${l.date ? shortDay(l.date) : ""}${l.time ? " u " + esc(l.time) : ""}</small><br>${l.score ? `<b>${l.score}</b> · ` : l.live ? `<b class="live">● ${l.live}</b> · ` : ""}<small>${pct(l.p)}</small></span></li>`).join("")}</ul>
+        <span style="text-align:right"><small>${l.date ? shortDay(l.date) : ""}${l.time ? " u " + esc(l.time) : ""}</small><br>${l.score ? `<b>${l.score}</b> · ` : l.live ? `<b class="live">● ${l.live}</b> · ` : ""}<small>${pct(l.p)}</small>${+l.odds > 0 ? ` · <b class="tk-odd">${num(+l.odds)}</b>` : ""}</span></li>`).join("")}</ul>
       <div class="tk-foot"><span>Šansa <b>${pct(t.p)}</b></span>
+        ${t.odds ? `<span>Ukupna kvota <b>${num(t.odds)}</b></span>` : ""}
         ${t.stake ? `<span>Ulog <b>${num(t.stake)} €</b></span>` : ""}
         ${t.stake && t.odds && t.status !== "lost" ? `<span>${t.status === "won" ? "Dobitak" : "Mogući dobitak"} <b>${num(t.stake * t.odds)} €</b></span>` : ""}
         <button class="btn danger sm" style="margin-left:auto" data-tdel="${t.id}">Obriši</button></div>
