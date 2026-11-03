@@ -125,6 +125,9 @@ def _odds(c):
     return {k: v for k, v in out.items() if v}
 
 
+NAMES = {}   # kod lige -> {ESPN ime: naše ime} (za rezultate uživo u aplikaciji)
+
+
 def fixtures(models, today=None, force=False, report=False):
     """Nadolazeće utakmice za 8 dana: [{league, iso, time, home, away, odds, src}] (britansko vrijeme)."""
     today = today or dt.date.today()
@@ -151,6 +154,8 @@ def fixtures(models, today=None, force=False, report=False):
                 h, a = (match(side["home"], teams, aliases), match(side["away"], teams, aliases))
                 for e, t in ((side["home"], h), (side["away"], a)):
                     seen[e] = t
+                    if t:
+                        NAMES.setdefault(code, {})[e] = t
                 if not h or not a or h == a:
                     unmatched.setdefault(code, set()).update(x for x, t in ((side["home"], h), (side["away"], a)) if not t)
                     continue

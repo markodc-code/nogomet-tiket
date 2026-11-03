@@ -592,6 +592,88 @@ const Engine = (() => {
     return games.length ? games.slice().sort()[0] : null;
   }
 
+  // ------------------------------------------------------------ rezultati uživo (ESPN, odmah nakon utakmice)
+  // Spremljeni podaci osvježavaju se nekoliko puta dnevno; za tikete aplikacija sama pita ESPN.
+  const ESPN_API = "https://site.api.espn.com/apis/site/v2/sports/";
+  let LIVE = {};                      // "sport|domaćin|gost" -> {done, row, score}
+  const liveFetched = {};             // url -> vrijeme zadnjeg upita
+  const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+  function liveSource(leg) {
+    const sp = leg.sport || "nog";
+    if (sp === "nog") {
+      const code = leg.league || where[leg.home], slug = ((D.espn || {}).slugs || {})[code];
+      return slug ? {sp, path: "soccer/" + slug, names: ((D.espn || {}).names || {})[code] || {}} : null;
+    }
+    const lg = leg.league || BI.where[leg.home];
+    if (sp === "kos" && lg === "NBA") return {sp, path: "basketball/nba", names: {}};
+    if (sp === "hok") return {sp, path: "hockey/nhl", names: {}};
+    if (sp === "ten" && (lg === "ATP" || lg === "WTA")) return {sp, path: "tennis/" + lg.toLowerCase(), names: {}};
+    return null;
+  }
+  const scoreOf = x => { const v = x && x.score; return v == null ? null : +(typeof v === "object" ? (v.value ?? v.displayValue) : v); };
+  function readTeamGame(src, c, date) {
+    const side = {}; for (const x of c.competitors || []) side[x.homeAway] = x;
+    if (!side.home || !side.away) return;
+    const nm = x => src.names[x.team.displayName] || x.team.displayName;
+    const st = c.status.type, state = st.state, hs = scoreOf(side.home), as = scoreOf(side.away);
+    if (state === "pre" || hs == null || as == null || isNaN(hs) || isNaN(as)) return;
+    let row = [date, hs, as];
+    if (src.sp === "hok") {            // oklade se računaju na regularni dio (3 trećine)
+      const per = x => (x.linescores || []).slice(0, 3).reduce((s, l) => s + (+l.value || 0), 0);
+      const ot = (side.home.linescores || []).length > 3 || /OT|SO/i.test(st.shortDetail || st.detail || "");
+      row = ot ? [date, per(side.home), per(side.away), true] : [date, hs, as, false];
+    }
+    LIVE[src.sp + "|" + nm(side.home) + "|" + nm(side.away)] = {done: !!st.completed, row, score: `${hs}:${as}`};
+  }
+  function readTennis(c, date) {
+    const comp = c.competitors || [];
+    if (comp.length !== 2) return;
+    const names = comp.map(x => (x.athlete || {}).displayName), st = c.status.type;
+    if (!names[0] || !names[1] || st.state === "pre" || st.name === "STATUS_WALKOVER") return;
+    const ls = comp.map(x => (x.linescores || []).map(l => +l.value || 0)), sets = [0, 0];
+    for (let k = 0; k < Math.min(ls[0].length, ls[1].length); k++) {
+      const a = ls[0][k], b = ls[1][k];
+      if (Math.max(a, b) < 6 || (Math.abs(a - b) < 2 && Math.max(a, b) !== 7)) continue;
+      sets[a > b ? 0 : 1]++;
+    }
+    const fs = ls[0].length && ls[1].length && Math.max(ls[0][0], ls[1][0]) >= 6 ? (ls[0][0] > ls[1][0] ? 1 : 2) : 0;
+    const w = comp[0].winner ? 1 : comp[1].winner ? 2 : 0;
+    const done = !!st.completed && !!w;
+    const put = (h, a, row, score) => { LIVE["ten|" + h + "|" + a] = {done, row, score}; };
+    put(names[0], names[1], [date, sets[0], sets[1], w, fs], `${sets[0]}:${sets[1]}`);
+    put(names[1], names[0], [date, sets[1], sets[0], w ? 3 - w : 0, fs ? 3 - fs : 0], `${sets[1]}:${sets[0]}`);
+  }
+  async function fetchLive(maxAge = 45000) {
+    const now = new Date(), jobs = {};
+    for (const t of loadTickets()) for (const leg of t.legs) {
+      if (!leg.date) continue;
+      const start = leg.time ? new Date(leg.date + "T" + leg.time) : new Date(leg.date + "T00:00");
+      if (start > now || now - start > 3 * 864e5) continue;          // nije počela ili je davno gotova
+      const key = (leg.sport || "nog") + "|" + leg.home + "|" + leg.away;
+      if (LIVE[key] && LIVE[key].done) continue;
+      const src = liveSource(leg);
+      if (!src) continue;
+      // ESPN dan ovisi o američkom vremenu, pa pitamo i susjedne dane
+      const base = new Date(leg.date + "T12:00:00Z");
+      for (const off of src.sp === "nog" ? [0] : [-1, 0, 1]) {
+        const url = `${ESPN_API}${src.path}/scoreboard?dates=${ymd(new Date(base.getTime() + off * 864e5))}`;
+        if (!liveFetched[url] || now - liveFetched[url] > maxAge) jobs[url] = {src, date: leg.date};
+      }
+    }
+    const urls = Object.keys(jobs);
+    await Promise.all(urls.map(async url => {
+      liveFetched[url] = Date.now();
+      try {
+        const js = await (await fetch(url, {cache: "no-store"})).json(), {src, date} = jobs[url];
+        for (const ev of js.events || []) {
+          if (src.sp === "ten") { for (const g of ev.groupings || []) for (const c of g.competitions || []) readTennis(c, date); }
+          else if (ev.competitions && ev.competitions[0]) readTeamGame(src, ev.competitions[0], date);
+        }
+      } catch (e) { /* bez interneta: ostaju spremljeni podaci */ }
+    }));
+    return urls.length;
+  }
+
   function ticketsPayload() {
     const out = loadTickets().sort((a, b) => b.created.localeCompare(a.created)).map(t => {
       const created = t.created.slice(0, 10);
@@ -601,7 +683,10 @@ const Engine = (() => {
           const fx = leg.sport === "kos" ? bFix[leg.home + "|" + leg.away] : fixByPair[leg.home + "|" + leg.away];
           if (fx) { leg.time = leg.sport === "kos" ? fx.time : hrTime(fx); if (!leg.date) leg.date = fx.iso; }
         }
-        const g = findResult(leg, created);
+        let g = findResult(leg, created);
+        const lv = LIVE[(leg.sport || "nog") + "|" + leg.home + "|" + leg.away];
+        if (!g && lv && lv.done) g = lv.row;
+        leg.live = !g && lv && !lv.done ? lv.score : null;
         if (g) {
           leg.score = `${g[1]}:${g[2]}`; leg.playedOn = g[0];
           try { leg.status = (leg.sport && leg.sport !== "nog" ? settleOther(leg.sport, leg.bet, g) : settleBet(leg.bet, g[1], g[2])) ? "won" : "lost"; } catch { leg.status = "pending"; }
@@ -869,5 +954,5 @@ const Engine = (() => {
     });
     return {last: games.slice(0, n), home: games.filter(g => g.home).slice(0, n), away: games.filter(g => !g.home).slice(0, n)};
   }
-  return {api, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, fetchLive, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
 })();

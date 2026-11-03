@@ -101,6 +101,8 @@ def build(force=False, out=OUT):
     data["fixtures"] = sorted(data["fixtures"] + u_fix, key=lambda f: (f["iso"], f["time"], f["league"]))
     data["results"] = sorted(data["results"] + u_res)
     data["uefa"] = [l["code"] for l in u_leagues]
+    # za rezultate uživo (aplikacija sama pita ESPN dok se utakmice igraju)
+    data["espn"] = {"slugs": {**E.SLUGS, **{c: v[0] for c, v in U.COMPS.items()}}, "names": E.NAMES}
     # forma klubova iz svih natjecanja (isti klub pod različitim imenima povezan u jedno)
     try:
         form, alias = FO.build(leagues, U.load(today, force), today, force)

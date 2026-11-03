@@ -318,9 +318,16 @@ details[open] summary::after { content: " ‹"; }
 .badge.lost { background: rgba(255,59,48,.12); color: var(--bad); }
 .badge.pending { background: var(--fill); color: var(--muted); }
 .tk-legs { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
-.tk-legs li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; padding: 7px 0; border-top: .5px solid var(--line); }
-.tk-legs .st { font-weight: 800; text-align: center; }
-.tk-legs .won .st { color: var(--good); } .tk-legs .lost .st { color: var(--bad); } .tk-legs .pending .st { color: var(--muted); }
+.tk-legs li { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 8px 6px; border-top: .5px solid var(--line); border-radius: 10px; }
+.tk-legs .st { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 14px; line-height: 1; }
+.tk-legs .won .st { background: #22a34a; color: #fff; box-shadow: 0 3px 8px rgba(34,163,74,.4); }
+.tk-legs .lost .st { background: #e5352b; color: #fff; box-shadow: 0 3px 8px rgba(229,53,43,.4); }
+.tk-legs .pending .st { border: 2px solid color-mix(in srgb, var(--muted) 45%, transparent); color: transparent; width: 20px; height: 20px; }
+.tk-legs li.won { background: rgba(34,163,74,.10); }
+.tk-legs b.live { color: #e5352b; animation: livep 1.4s ease-in-out infinite; }
+@keyframes livep { 50% { opacity: .45; } }
+.tk-legs li.lost { background: rgba(229,53,43,.09); }
 .tk-legs small { color: var(--muted); }
 .tk-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; color: var(--muted); margin-top: 8px; align-items: center; }
 .tk-foot b { color: var(--ink); }
@@ -1556,10 +1563,24 @@ document.addEventListener("visibilitychange", () => {
 
 /* ---------- moji tiketi ---------- */
 let HIST = null, histFilter = "all";
-const ST = {won: ["✓", "Prošao"], lost: ["✗", "Pao"], pending: ["•", "Čeka"]};
+const ST = {won: ["✔", "Prošao"], lost: ["✖", "Pao"], pending: ["", "Čeka"]};
 
+// dok su Moji tiketi otvoreni, rezultati uživo svaku minutu
+setInterval(() => { if (view === "history" && !document.hidden) loadHistory(false); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && view === "history") loadHistory(false); });
 async function loadHistory(render) {
   HIST = await api("/api/tickets");
+  // rezultati uživo: odmah pitaj ESPN za utakmice koje su u tijeku ili tek završile
+  if (!loadHistory.busy) {
+    loadHistory.busy = true;
+    Engine.fetchLive().then(async n => {
+      loadHistory.busy = false;
+      if (!n) return;
+      HIST = await api("/api/tickets");
+      $("#navcount").textContent = HIST.stats.pending || "";
+      if (view === "history") renderHistory();
+    }).catch(() => { loadHistory.busy = false; });
+  }
   $("#navcount").textContent = HIST.stats.pending || "";
   if (render || view === "history") renderHistory();
 }
@@ -1597,7 +1618,7 @@ function renderHistory() {
         <span class="badge ${t.status}">${ST[t.status][1]}</span></div>
       <ul class="tk-legs">${t.legs.map(l => `<li class="${l.status}"><span class="st">${ST[l.status][0]}</span>
         <span>${esc(l.home)} – ${esc(l.away)}<br><small>${esc(l.betLabel)}</small></span>
-        <span style="text-align:right"><small>${l.date ? shortDay(l.date) : ""}${l.time ? " u " + esc(l.time) : ""}</small><br>${l.score ? `<b>${l.score}</b> · ` : ""}<small>${pct(l.p)}</small></span></li>`).join("")}</ul>
+        <span style="text-align:right"><small>${l.date ? shortDay(l.date) : ""}${l.time ? " u " + esc(l.time) : ""}</small><br>${l.score ? `<b>${l.score}</b> · ` : l.live ? `<b class="live">● ${l.live}</b> · ` : ""}<small>${pct(l.p)}</small></span></li>`).join("")}</ul>
       <div class="tk-foot"><span>Šansa <b>${pct(t.p)}</b></span>
         ${t.stake ? `<span>Ulog <b>${num(t.stake)} €</b></span>` : ""}
         ${t.stake && t.odds && t.status !== "lost" ? `<span>${t.status === "won" ? "Dobitak" : "Mogući dobitak"} <b>${num(t.stake * t.odds)} €</b></span>` : ""}
@@ -1607,7 +1628,7 @@ function renderHistory() {
   el.innerHTML = tiles + `<div class="hgrid">
     <div class="card"><div class="seg wide filters">${[["all", "Svi"], ["pending", "Čekaju"], ["won", "Prošli"], ["lost", "Pali"]]
       .map(([k, v]) => `<button data-hf="${k}" class="${histFilter === k ? "on" : ""}">${v}</button>`).join("")}</div>${cards}
-      <p class="foot">Rezultati se provjeravaju sami (zadnji rezultat: ${HIST.lastResult ? fmtDate(HIST.lastResult) : "?"}). Obično stignu dan ili dva nakon utakmice.</p></div>
+      <p class="foot">Rezultati se provjeravaju sami (zadnji rezultat: ${HIST.lastResult ? fmtDate(HIST.lastResult) : "?"}). Dok se utakmice igraju, rezultat se osvježava svaku minutu, a čim utakmica završi par dobije ✔ ili ✖.</p></div>
     <div><div class="card calib"><h2>Koliko su procjene točne</h2>${calib}</div>${backupHTML()}</div></div>`;
 }
 function backupHTML() {
