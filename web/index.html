@@ -652,13 +652,13 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
     <div class="head-right">
       <nav class="nav" aria-label="Glavni izbornik">
         <button data-view="live" class="live"><span class="ldot" aria-hidden="true"></span><span class="ltxt">LIVE</span></button>
-        <button data-view="suggest" class="on">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>
-          Prijedlozi</button>
-        <button data-view="goriona" class="fire"><span class="flame" aria-hidden="true">🔥</span>Goriona</button>
         <button data-view="ticket">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg>
           Ponuda <span class="badge-n" id="navbadge"></span></button>
+        <button data-view="suggest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>
+          Prijedlozi</button>
+        <button data-view="goriona" class="fire"><span class="flame" aria-hidden="true">🔥</span>Goriona</button>
         <button data-view="history">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a9.5 9.5 0 110 19 9.5 9.5 0 010-19zm-1 4.5v6.1l5.1 3.1.9-1.5-4.2-2.5V7z"/></svg>
           Moji tiketi <span class="badge-n" id="navcount" style="background:var(--muted)"></span></button>
@@ -670,7 +670,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
   </header>
 
   <section id="live" hidden></section>
-  <section id="suggest"><div class="loading">Učitavam prijedloge…</div></section>
+  <section id="suggest" hidden><div class="loading">Učitavam prijedloge…</div></section>
   <section id="goriona" hidden></section>
   <section id="history" hidden></section>
 
@@ -792,11 +792,13 @@ const relDay = iso => { const diff = Math.round((isoDate(iso) - isoDate(todayIso
 const OFFER_DAYS = 4;
 const offerEnd = () => { const d = new Date(); d.setDate(d.getDate() + OFFER_DAYS); return localIso(d); };
 const inOffer = iso => iso >= todayIso() && iso <= offerEnd();
+// u ponudi su samo utakmice koje još nisu počele
+const open_ = f => inOffer(f.iso) && !Engine.started(f);
 const parovi = n => `${n} ${n === 1 ? "par" : n % 10 >= 2 && n % 10 <= 4 && (n < 10 || n > 20) ? "para" : "parova"}`;
 const fmtDate = iso => { const d = new Date(iso); return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}.`; };
 
 /* ---------- stanje ---------- */
-let INIT = null, side = store.get("nt-side", "fx"), lgFilter = store.get("nt-lg", "all"), selDay = null, view = "suggest";
+let INIT = null, side = store.get("nt-side", "fx"), lgFilter = store.get("nt-lg", "all"), selDay = null, view = "ticket";
 let sport = store.get("nt-sport", "nog"), bDay = null;
 const otherLeague = store.get("nt-leagues", {kos: "NBA", hok: "NHL", ten: "ATP"});  // odabrana liga po sportu
 let legs = (store.get("nt-legs", null) || []).filter(l => l && (l.home || l.away));
@@ -1231,7 +1233,7 @@ function renderSide() {
 
   // dani dolaze iz svih liga; izbornik liga pokazuje samo lige koje igraju odabrani dan
   const today = todayIso();
-  const offer = INIT.fixtures.filter(f => inOffer(f.iso));
+  const offer = INIT.fixtures.filter(open_);
   const counts = {};
   for (const f of offer) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort();
@@ -1352,7 +1354,7 @@ function renderBasket() {
       ${lg.table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team)}</td><td>${r.p}</td><td><b>${r.w}-${r.l}</b></td><td>${r.pf}:${r.pa}</td><td>${formHTML(r.form)}</td></tr>`).join("")}</table>`;
     return;
   }
-  const all = BK.fixtures.filter(f => f.league === bLeague && inOffer(f.iso)), counts = {};
+  const all = BK.fixtures.filter(f => f.league === bLeague && open_(f)), counts = {};
   for (const f of all) counts[f.iso] = (counts[f.iso] || 0) + 1;
   const days = Object.keys(counts).sort(), today = todayIso();
   if (!days.length) { $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
@@ -1391,8 +1393,8 @@ $("#lgf").addEventListener("click", e => {
   const u = e.target.closest("[data-uefa]");
   if (u) {
     lgFilter = lgFilter === u.dataset.uefa ? "all" : u.dataset.uefa; store.set("nt-lg", lgFilter);
-    if (lgFilter !== "all" && side === "fx" && !INIT.fixtures.some(f => f.league === lgFilter && f.iso === selDay)) {
-      const first = INIT.fixtures.filter(f => f.league === lgFilter && inOffer(f.iso)).map(f => f.iso).sort()[0];
+    if (lgFilter !== "all" && side === "fx" && !INIT.fixtures.some(f => f.league === lgFilter && f.iso === selDay && open_(f))) {
+      const first = INIT.fixtures.filter(f => f.league === lgFilter && open_(f)).map(f => f.iso).sort()[0];
       if (first) selDay = first;
     }
     return renderSide();
@@ -1500,6 +1502,10 @@ $("#live").addEventListener("click", e => {
 setInterval(() => { if (view === "live" && !document.hidden) renderLive(false); }, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && view === "live") renderLive(false); });
 
+setInterval(() => {
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (view === "ticket" && INIT && !document.hidden && !typing) { const y = scrollY; renderSide(); scrollTo(0, y); }
+}, 60000);
 /* ---------- navigacija ---------- */
 function setView(v) {
   view = v;
@@ -1774,7 +1780,7 @@ $("#refresh").onclick = async () => {
 (async () => {
   try { applyInit(await api("/api/init")); }
   catch (e) { $("#sub").textContent = "Nema podataka: " + e.message + ". Provjeri internet i osvježi."; return; }
-  renderLegs(); compute(); loadHistory(false); renderSuggest();
+  renderLegs(); compute(); loadHistory(false); setView("ticket");
 })();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   // Kad stigne nova verzija aplikacije, jednom ponovno učitaj stranicu.

@@ -1077,5 +1077,7 @@ const Engine = (() => {
     });
     return {last: games.slice(0, n), home: games.filter(g => g.home).slice(0, n), away: games.filter(g => !g.home).slice(0, n)};
   }
-  return {api, fetchLive, liveBoard, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
+  // je li utakmica već počela (takve se miču iz ponude)
+  const started = (f, now = new Date()) => (f.utc ? new Date(f.utc) : kickoff(f)) <= now;
+  return {api, fetchLive, liveBoard, started, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
 })();
