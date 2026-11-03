@@ -395,7 +395,8 @@ body[data-sport] .ob.on { background: linear-gradient(135deg, var(--tint), color
 body[data-sport] .dayb { background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent); }
 body[data-sport] .dayb.on { background: linear-gradient(160deg, var(--tint), color-mix(in srgb, var(--tint) 65%, #000)); border-color: transparent;
   box-shadow: 0 8px 20px color-mix(in srgb, var(--tint) 40%, transparent); }
-body[data-sport] .seg { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+body[data-sport] .seg { background: #e3e5ea; box-shadow: inset 0 0 0 1px rgba(15,23,42,.06); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body[data-sport] .seg { background: #2c2c30; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); } }
 body[data-sport] .leg, body[data-sport] .tk { background: color-mix(in srgb, var(--card) 65%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 16px; }
 body[data-sport] .summary { background: linear-gradient(135deg, var(--tint-soft), color-mix(in srgb, var(--tint) 6%, transparent)); border: 1px solid color-mix(in srgb, var(--tint) 25%, transparent); }
 body[data-sport] .btn.primary { background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 70%, #000));
@@ -416,6 +417,25 @@ body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, trans
     border-color: rgba(255,255,255,.08); box-shadow: 0 12px 34px rgba(0,0,0,.35); }
   :root:not([data-theme="light"]) body[data-sport] .sports button { border-color: rgba(255,255,255,.08); }
 }
+
+
+/* ---------- zaključani ulaz ---------- */
+#lock { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+  background: radial-gradient(ellipse at top, #1f7a3e 0%, #0d3b1f 55%, #071f10 100%); }
+#lock.hide { display: none; }
+#lock .box { width: 100%; max-width: 380px; background: rgba(255,255,255,.96); color: #111; border-radius: 26px; padding: 28px 22px 24px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.45); text-align: center; animation: tpop .3s ease; }
+#lock .ball { font-size: 46px; line-height: 1; margin-bottom: 10px; }
+#lock h2 { margin: 0 0 18px; font-size: 21px; font-weight: 900; letter-spacing: .02em; line-height: 1.25; }
+#lock label { display: block; text-align: left; font-size: 13px; font-weight: 700; color: #555; margin: 0 4px 6px; }
+#lock input { width: 100%; box-sizing: border-box; font-size: 18px; padding: 13px 14px; border-radius: 14px; border: 1.5px solid #d6d9de;
+  background: #f4f5f7; color: #111; outline: none; }
+#lock input:focus { border-color: #16a34a; background: #fff; }
+#lock button { width: 100%; margin-top: 14px; border: 0; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #16a34a, #0f6b31); box-shadow: 0 8px 20px rgba(22,163,74,.35); }
+#lock .err { color: #e5352b; font-size: 14px; font-weight: 700; min-height: 20px; margin-top: 10px; }
+#lock.shake .box { animation: lshake .4s; }
+@keyframes lshake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 
 /* ---------- europska natjecanja: animirane kartice ---------- */
 .uefa-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -539,6 +559,36 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
 </style>
 </head>
 <body>
+<div id="lock">
+  <form class="box" id="lockForm" autocomplete="off">
+    <div class="ball">⚽</div>
+    <h2>PRAVI TIPSTER JEDINO ZNA LOZINKU</h2>
+    <label for="lockPw">Lozinka:</label>
+    <input id="lockPw" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="submit">Uđi</button>
+    <div class="err" id="lockErr"></div>
+  </form>
+</div>
+<script>
+(() => {
+  const lock = document.getElementById("lock");
+  let ok = false;
+  try { ok = sessionStorage.getItem("nt-unlocked") === "1"; } catch (e) {}
+  if (ok) { lock.classList.add("hide"); return; }
+  const pw = document.getElementById("lockPw"), err = document.getElementById("lockErr");
+  setTimeout(() => pw.focus(), 50);
+  document.getElementById("lockForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (pw.value.trim().toLowerCase() === "tiptiptip") {
+      try { sessionStorage.setItem("nt-unlocked", "1"); } catch (e) {}
+      lock.classList.add("hide");
+    } else {
+      err.textContent = "Kriva lozinka. Pravi tipster bi znao.";
+      pw.value = ""; lock.classList.remove("shake"); void lock.offsetWidth; lock.classList.add("shake");
+    }
+  });
+})();
+</script>
 <div class="wrap">
   <header>
     <div>
