@@ -220,7 +220,7 @@ const Engine = (() => {
     const B = bet.toUpperCase();
     return {
       home: h, away: a, league: lg.code, leagueName: lg.name, flag: lg.flag, accuracy: lg.accuracy, bet,
-      betLabel: BET_LABELS[B] || (B.startsWith("R") ? "Točan rezultat " + B.slice(1) : bet),
+      betLabel: BET_LABELS[B] || (B.startsWith("R") ? "Točan rezultat " + B.slice(1) : /^\d+\+$/.test(B) ? B + " golova" : /^0-\d+$/.test(B) ? B + " golova" : bet),
       p, pModel, pMarket: mk[B] ?? null, source,
       fairOdds: p > 0 ? 1 / p : null, odds, value: odds ? p * odds - 1 : null,
       xg: [lh, la], xgModel: [mlh, mla], scores: scores.slice(0, 6), basic,
@@ -229,7 +229,15 @@ const Engine = (() => {
   }
 
   function evaluateTicket(legs) {
-    const res = legs.slice(0, 30).map(l => l.sport && l.sport !== "nog" ? evaluateBasketLeg(l) : evaluateLeg(l)), ok = res.filter(r => !r.error), total = {legs: ok.length};
+    const res = legs.slice(0, 30).map(l => {
+      let r = l.sport && l.sport !== "nog" ? evaluateBasketLeg(l) : evaluateLeg(l);
+      if (!r.error && +l.livep > 0) {
+        const lp = +l.livep;
+        r = {...r, p: lp, pModel: lp, pMarket: null, fairOdds: 1 / lp, value: r.odds ? lp * r.odds - 1 : null, live: true,
+          betLabel: l.liveLabel || r.betLabel, date: r.date || l.date, time: r.time || l.time};
+      }
+      return r;
+    }), ok = res.filter(r => !r.error), total = {legs: ok.length};
     if (ok.length) {
       const p = ok.reduce((x, r) => x * r.p, 1);
       Object.assign(total, {p, fairOdds: p > 0 ? 1 / p : null});
@@ -674,6 +682,121 @@ const Engine = (() => {
     return urls.length;
   }
 
+  // ------------------------------------------------------------ LIVE: utakmice u tijeku i šanse prema trenutnom rezultatu
+  // Ostatak utakmice: očekivanje modela razmjerno preostalom vremenu, plus rezultat koji već piše.
+  const liveCache = {};
+  async function espnBoard(path, date, maxAge) {
+    const url = `${ESPN_API}${path}/scoreboard?dates=${date}`, c = liveCache[url];
+    if (c && Date.now() - c.t < maxAge) return c.js;
+    try {
+      const js = await (await fetch(url, {cache: "no-store"})).json();
+      liveCache[url] = {t: Date.now(), js};
+      return js;
+    } catch (e) { return c ? c.js : null; }
+  }
+  const clockSecs = s => { const m = String(s || "").match(/(\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : 0; };
+  function shifted(rem, hs, as) {          // matrica konačnih rezultata = trenutni + ostatak
+    const n = rem.length + Math.max(hs, as), m = Array.from({length: n}, () => new Array(n).fill(0));
+    for (let i = 0; i < rem.length; i++) for (let j = 0; j < rem.length; j++) m[i + hs][j + as] += rem[i][j];
+    return m;
+  }
+  const golova = n => n % 10 >= 2 && n % 10 <= 4 && (n < 10 || n > 20) ? "gola" : n % 10 === 1 && n !== 11 ? "gol" : "golova";
+  const goalsLabel = b => /^\d+\+$/.test(b) ? `${b} ${golova(parseInt(b))} ukupno` : /^0-\d+$/.test(b) ? `najviše ${b.slice(2)} ${golova(+b.slice(2))}` : null;
+  function liveFootball(code, ev, c) {
+    const lg = L[code]; if (!lg || !lg.att) return null;
+    const names = ((D.espn || {}).names || {})[code] || {}, side = {};
+    for (const x of c.competitors) side[x.homeAway] = x;
+    const h = names[side.home.team.displayName] || side.home.team.displayName;
+    const a = names[side.away.team.displayName] || side.away.team.displayName;
+    if (!(h in lg.att) || !(a in lg.att)) return null;
+    const hs = scoreOf(side.home), as = scoreOf(side.away), st = c.status;
+    const r0 = evaluateLeg({home: h, away: a, bet: "1", league: code});
+    const lam = lamCache[code + "|" + h + "|" + a]; if (r0.error || !lam) return null;
+    let minute = parseInt(st.displayClock) || 0;
+    if (/HALFTIME/.test(st.type.name)) minute = 45;
+    if (st.period >= 2 && minute < 45) minute = 45;
+    const r = Math.max(90 - minute, 1) / 90;
+    const m = shifted(matrix(lam.lh * r, lam.la * r, 0), hs, as), t = hs + as;
+    const cand = ["1", "X", "2", "1X", "X2", "12", "GG", "NG", `${t + 1}+`, `0-${t}`, `${t + 2}+`, `0-${t + 1}`, `${t + 3}+`];
+    const bets = [];
+    for (const b of cand) {
+      const pb = betProbability(m, b);
+      if (pb > 0.03 && pb < 0.93 && bets.length < 10) bets.push({bet: b, label: goalsLabel(b) || BET_LABELS[b] || b, p: pb});
+    }
+    return {sport: "nog", league: code, leagueName: lg.name, flag: lg.flag, uefa: !!lg.uefa, home: h, away: a, hs, as,
+      clock: /HALFTIME/.test(st.type.name) ? "Poluvrijeme" : (st.displayClock || "").replace(/'+$/, "") + "'", bets};
+  }
+  function liveNBA(ev, c) {
+    const lg = BL.NBA; if (!lg) return null;
+    const side = {}; for (const x of c.competitors) side[x.homeAway] = x;
+    const h = side.home.team.displayName, a = side.away.team.displayName;
+    if (!(h in lg.off) || !(a in lg.off)) return null;
+    const hs = scoreOf(side.home), as = scoreOf(side.away), st = c.status, per = st.period || 1;
+    const left = per <= 4 ? (4 - per) * 720 + clockSecs(st.displayClock) : clockSecs(st.displayClock);
+    const r = Math.max(left, 20) / 2880, fx = bFix[h + "|" + a];
+    const e = basketExpect(lg, h, a, fx), lines = fx ? basketLines(fx) : basketLines({league: "NBA", home: h, away: a, odds: {}});
+    const margin = hs - as + e.margin * r, total = hs + as + e.total * r, sdM = e.sdM * Math.sqrt(r), sdT = e.sdT * Math.sqrt(r);
+    const E2 = {...e, margin, total, sdM, sdT, pHome: PHI(margin / sdM)};
+    const bets = [];
+    for (const b of ["1", "2", `H1:${lines.spread}`, `H2:${-lines.spread}`, `O:${lines.total}`, `U:${lines.total}`,
+      `DO:${lines.home}`, `DU:${lines.home}`, `GO:${lines.away}`, `GU:${lines.away}`]) {
+      const pb = basketProb(E2, b);
+      if (pb > 0.03 && pb < 0.93 && bets.length < 10) bets.push({bet: b, label: basketLabel(b), p: pb});
+    }
+    const clock = st.type.name === "STATUS_HALFTIME" ? "Poluvrijeme" : per > 4 ? `Produžetak ${st.displayClock}` : `${per}. četvrtina ${st.displayClock}`;
+    return {sport: "kos", league: "NBA", leagueName: "NBA", flag: "USA", home: h, away: a, hs, as, clock, bets, lines};
+  }
+  function liveNHL(ev, c) {
+    const lg = BL.NHL; if (!lg) return null;
+    const side = {}; for (const x of c.competitors) side[x.homeAway] = x;
+    const h = side.home.team.displayName, a = side.away.team.displayName;
+    if (!(h in lg.att) || !(a in lg.att)) return null;
+    const st = c.status, per = st.period || 1;
+    if (per > 3) return null;                         // produžeci: regularni dio je gotov
+    const hs = scoreOf(side.home), as = scoreOf(side.away);
+    const left = (3 - per) * 1200 + clockSecs(st.displayClock), r = Math.max(left, 20) / 3600;
+    const fx = bFix[h + "|" + a], Lm = hockeyLambdas(lg, h, a, fx), lines = basketLines(fx || {league: "NHL", odds: {}});
+    const m = shifted(matrix(Lm.lh * r, Lm.la * r, 0), hs, as);
+    const bets = [];
+    for (const b of ["1", "X", "2", "1X", "X2", "12", "1OT", "2OT", `O:${lines.total}`, `U:${lines.total}`, "GG", "NG"]) {
+      const pb = hockeyBetP(m, b);
+      if (pb > 0.03 && pb < 0.93 && bets.length < 10) bets.push({bet: b, label: hockeyLabel(b), p: pb});
+    }
+    const clock = /INTERMISSION|END_PERIOD/.test(st.type.name) ? `Pauza nakon ${per}. trećine` : `${per}. trećina ${st.displayClock}`;
+    return {sport: "hok", league: "NHL", leagueName: "NHL", flag: "USA", home: h, away: a, hs, as, clock, bets, lines};
+  }
+  async function liveBoard(maxAge = 30000) {
+    const now = new Date(), days = [ymd(now), ymd(new Date(now.getTime() - 864e5))];
+    const todayIso = localIsoD(now), yIso = localIsoD(new Date(now.getTime() - 864e5));
+    const slugs = (D.espn || {}).slugs || {}, codes = new Set();
+    for (const f of D.fixtures) if ((f.iso === todayIso || f.iso === yIso) && slugs[f.league]) codes.add(f.league);
+    const jobs = [];
+    for (const code of codes) jobs.push(espnBoard("soccer/" + slugs[code], days[0], maxAge).then(js => ({code, js})));
+    for (const d of days) {
+      jobs.push(espnBoard("basketball/nba", d, maxAge).then(js => ({code: "NBA", js})));
+      jobs.push(espnBoard("hockey/nhl", d, maxAge).then(js => ({code: "NHL", js})));
+    }
+    const seen = new Set(), bySport = {nog: [], kos: [], hok: []};
+    for (const {code, js} of await Promise.all(jobs)) {
+      for (const ev of (js && js.events) || []) {
+        const c = ev.competitions && ev.competitions[0];
+        if (!c || c.status.type.state !== "in" || seen.has(ev.id)) continue;
+        seen.add(ev.id);
+        let g = null;
+        try { g = code === "NBA" ? liveNBA(ev, c) : code === "NHL" ? liveNHL(ev, c) : liveFootball(code, ev, c); } catch (e) { g = null; }
+        if (!g || !g.bets.length) continue;
+        const k = new Date(ev.date);
+        Object.assign(g, {id: ev.id, iso: localIsoD(k), time: `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`,
+          bets: g.bets.map(b => ({...b, odds: Math.max(1.01, estOdds(b.p))}))});
+        bySport[g.sport].push(g);
+      }
+    }
+    // najviše 10, izmiješano po sportovima (nogomet, košarka, hokej naizmjence)
+    const lists = Object.values(bySport).filter(l => l.length), out = [];
+    for (let i = 0; out.length < 10 && lists.some(l => i < l.length); i++) for (const l of lists) if (i < l.length && out.length < 10) out.push(l[i]);
+    return {games: out, total: Object.values(bySport).reduce((s, l) => s + l.length, 0), at: Date.now()};
+  }
+
   function ticketsPayload() {
     const out = loadTickets().sort((a, b) => b.created.localeCompare(a.created)).map(t => {
       const created = t.created.slice(0, 10);
@@ -954,5 +1077,5 @@ const Engine = (() => {
     });
     return {last: games.slice(0, n), home: games.filter(g => g.home).slice(0, n), away: games.filter(g => !g.home).slice(0, n)};
   }
-  return {api, fetchLive, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
+  return {api, fetchLive, liveBoard, teamForm, exportTickets, importTickets, hrTime, basketLabel, basketProbFor, fixtureProbs, fixtureBetP, _test: {findTeam, settleBet, matrix, betProbability}};
 })();

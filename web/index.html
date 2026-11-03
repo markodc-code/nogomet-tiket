@@ -471,6 +471,53 @@ body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, trans
 .lghead.lg-UCL { color: #1e4fd8; } .lghead.lg-UEL { color: #0c8a4f; } .lghead.lg-UECL { color: #ea580c; }
 .lghead.lg-UCL, .lghead.lg-UEL, .lghead.lg-UECL { font-weight: 800; }
 
+
+/* ---------- LIVE: crvena kartica koja svijetli ---------- */
+.nav button.live { isolation: isolate; color: #fff; font-weight: 900; letter-spacing: .08em; }
+.nav button.live::before { content: ""; position: absolute; inset: 2px; border-radius: 10px; z-index: -1;
+  background: linear-gradient(120deg, #ff1f3d, #b80018 45%, #ff3b30 70%, #ff1f3d); background-size: 220% 220%;
+  animation: lGrad 2.4s ease infinite, lGlow 1.2s ease-in-out infinite alternate; }
+.nav button.live::after { content: ""; position: absolute; inset: 2px; border-radius: 10px; z-index: -1; overflow: hidden;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.55) 48%, transparent 66%) no-repeat;
+  background-size: 60% 100%; background-position: -120% 0; animation: lShine 2.6s ease-in-out infinite; }
+.nav button.live.on::before { box-shadow: 0 0 0 2px #fff, 0 0 22px 6px rgba(255,30,60,.75); }
+.nav .ldot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: #fff; flex: none; }
+.nav .ldot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #fff; animation: lPing 1.2s cubic-bezier(0,0,.2,1) infinite; }
+.nav button.live .ltxt { text-shadow: 0 1px 6px rgba(120,0,10,.6); }
+.nav button.live, .nav button.live.on, body[data-sport] .nav button.live.on { color: #fff !important; }
+.nav button.live .ltxt { font-weight: 900; }
+@keyframes lGrad { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes lGlow { from { box-shadow: 0 0 6px 1px rgba(255,30,60,.45); } to { box-shadow: 0 0 18px 5px rgba(255,30,60,.8); } }
+@keyframes lShine { 0%, 40% { background-position: -120% 0; } 80%, 100% { background-position: 220% 0; } }
+@keyframes lPing { 0% { transform: scale(1); opacity: .9; } 80%, 100% { transform: scale(2.8); opacity: 0; } }
+@media (max-width: 760px) {
+  .nav button.live::before, .nav button.live::after { inset: 5px 6px; border-radius: 14px; }
+  .nav button.live { font-size: 11.5px; }
+  .nav .ldot { width: 10px; height: 10px; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .nav button.live::before, .nav button.live::after, .nav .ldot::after { animation: none; } }
+.live-hero { border-radius: 24px; overflow: hidden; color: #fff; padding: 18px 18px 16px; margin-bottom: 14px; position: relative;
+  background: radial-gradient(circle at 85% 20%, rgba(255,255,255,.18), transparent 40%), linear-gradient(150deg, #ff2d4a 0%, #c4001d 55%, #6d0010 100%);
+  box-shadow: 0 14px 34px rgba(200,0,30,.35); }
+.live-hero h2 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: .06em; display: flex; align-items: center; gap: 10px; }
+.live-hero h2 .ldot { position: relative; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+.live-hero h2 .ldot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #fff; animation: lPing 1.2s cubic-bezier(0,0,.2,1) infinite; }
+.live-hero p { margin: 6px 0 0; font-size: 14px; opacity: .92; line-height: 1.4; }
+.live-hero .upd { font-size: 12px; opacity: .8; margin-top: 8px; }
+.lg-card { border-radius: 20px; padding: 14px; margin-bottom: 12px; background: var(--card); box-shadow: 0 8px 24px rgba(15,23,42,.10);
+  border: 1px solid rgba(255,40,60,.25); position: relative; }
+.lg-card::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 4px; border-radius: 0 4px 4px 0;
+  background: linear-gradient(#ff2d4a, #c4001d); }
+.lg-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 700; }
+.lg-clock { color: #e5132f; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg-clock::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #e5132f; animation: livep 1.2s ease-in-out infinite; }
+.lg-score { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; margin: 10px 2px 12px; }
+.lg-score .t { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-score .g { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; min-width: 34px; }
+.lg-card .fx-odds { margin-top: 0; }
+.live-empty { text-align: center; padding: 34px 18px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.live-empty b { display: block; font-size: 40px; margin-bottom: 6px; }
+
 /* ---------- goriona: vatrica oko kartice ---------- */
 .nav button.fire { isolation: isolate; color: #c2410c; font-weight: 700; }
 .nav button.fire::before { content: ""; position: absolute; inset: -2px; border-radius: 11px; z-index: -1;
@@ -604,6 +651,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
     </div>
     <div class="head-right">
       <nav class="nav" aria-label="Glavni izbornik">
+        <button data-view="live" class="live"><span class="ldot" aria-hidden="true"></span><span class="ltxt">LIVE</span></button>
         <button data-view="suggest" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z"/></svg>
           Prijedlozi</button>
@@ -621,6 +669,7 @@ body.has-slip .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom));
     </div>
   </header>
 
+  <section id="live" hidden></section>
   <section id="suggest"><div class="loading">Učitavam prijedloge…</div></section>
   <section id="goriona" hidden></section>
   <section id="history" hidden></section>
@@ -944,13 +993,13 @@ $("#clear").onclick = () => {
   legs = []; RES = {}; renderLegs(); renderSide(); schedule(0);
 };
 
-function save() { store.set("nt-legs", legs.map(({home, away, bet, odds, oddsEst, date, time, fx, sport, lines, league}) => ({home, away, bet, odds, oddsEst, date, time, fx, sport, lines, league}))); }
+function save() { store.set("nt-legs", legs.map(({home, away, bet, odds, oddsEst, date, time, fx, sport, lines, league, livep, liveLabel}) => ({home, away, bet, odds, oddsEst, date, time, fx, sport, lines, league, livep, liveLabel}))); }
 function schedule(ms = 300) { save(); updateBadges(); clearTimeout(timer); timer = setTimeout(compute, ms); }
 
 async function compute() {
   const filled = filledLegs(), my = ++reqNo;
   if (!filled.length) { RES = {}; $("#summary").hidden = true; $("#savebar").hidden = true; paintResults(); return; }
-  const data = await api("/api/ticket", {legs: filled.map(({home, away, bet, odds, sport, league}) => ({home, away, bet, odds, sport, league}))});
+  const data = await api("/api/ticket", {legs: filled.map(({home, away, bet, odds, sport, league, livep, liveLabel, date, time}) => ({home, away, bet, odds, sport, league, livep, liveLabel, date, time}))});
   if (my !== reqNo) return;
   RES = {}; let regroup = false;
   filled.forEach((l, i) => {
@@ -1368,7 +1417,7 @@ function toggleLeg(f, bet, odds, est) {
   const sp = f.sport || "nog", leg = legFor(f.home, f.away, sp), oddsTxt = odds ? String(odds).replace(".", ",") : "";
   let msg;
   if (leg && leg.bet === bet) { legs = legs.filter(l => l !== leg); delete RES[leg.id]; msg = "Maknuto s tiketa"; }
-  else if (leg) { Object.assign(leg, {bet, odds: oddsTxt, oddsEst: !!est}); msg = `Oklada promijenjena u ${bet}`; }
+  else if (leg) { Object.assign(leg, {bet, odds: oddsTxt, oddsEst: !!est, livep: undefined, liveLabel: undefined}); msg = `Oklada promijenjena u ${bet}`; }
   else {
     legs = legs.filter(l => l.home.trim() || l.away.trim());
     const nl = {id: ++uid, home: f.home, away: f.away, bet, odds: oddsTxt, oddsEst: !!est, date: f.date || f.iso, time: f.time ? (f.time.includes(":") ? f.time : "") : "", fx: true};
@@ -1403,13 +1452,62 @@ $("#side").onclick = e => {
   toast(`${msg} · ${parovi(n)}`, isNarrow() ? () => setPane("ticket") : null);
 };
 
+
+/* ---------- LIVE: utakmice u tijeku (najviše 10, izmiješani sportovi) ---------- */
+let LIVEB = null, liveBusy = false;
+async function renderLive(fresh) {
+  const el = $("#live");
+  if (!LIVEB || fresh && !LIVEB) el.innerHTML = `<div class="live-hero"><h2><span class="ldot"></span>LIVE</h2><p>Tražim utakmice koje se upravo igraju…</p></div>`;
+  if (liveBusy) return;
+  liveBusy = true;
+  try { LIVEB = await Engine.liveBoard(); } catch (e) { LIVEB = LIVEB || {games: [], total: 0, at: Date.now()}; }
+  liveBusy = false;
+  if (view === "live") drawLive();
+}
+function drawLive() {
+  const el = $("#live"), G = LIVEB.games, at = new Date(LIVEB.at);
+  const hero = `<div class="live-hero"><h2><span class="ldot"></span>LIVE</h2>
+    <p>Utakmice koje se upravo igraju. Šansa se računa iz trenutnog rezultata i vremena koje je ostalo, pa se mijenja kako utakmica teče.</p>
+    <div class="upd">Osvježeno u ${at.toLocaleTimeString("hr-HR", {hour: "2-digit", minute: "2-digit", second: "2-digit"})} · samo se osvježava svakih 30 sekundi${LIVEB.total > G.length ? ` · prikazano ${G.length} od ${LIVEB.total}` : ""}</div></div>`;
+  if (!G.length) {
+    el.innerHTML = hero + `<div class="card live-empty"><b>😴</b>Trenutno se ne igra nijedna utakmica iz naše ponude.<br>Navrati kad krenu utakmice – ova stranica se sama osvježava.</div>`;
+    return;
+  }
+  el.innerHTML = hero + G.map((g, gi) => {
+    const leg = legFor(g.home, g.away, g.sport);
+    const lgName = g.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[g.league] || "") + esc(g.leagueName) : lgTitle({flag: g.flag, name: g.leagueName});
+    return `<div class="lg-card">
+      <div class="lg-top"><span>${SPORT_EMOJI[g.sport]} ${lgName}</span><span class="lg-clock">${esc(g.clock)}</span></div>
+      <div class="lg-score"><span class="t">${esc(g.home)}</span><span class="g">${g.hs}</span><span class="t">${esc(g.away)}</span><span class="g">${g.as}</span></div>
+      <div class="fx-odds">${g.bets.map((b, bi) => {
+        const on = leg && leg.bet === b.bet;
+        return `<button class="ob ${on ? "on" : ""}" data-lg="${gi}" data-lb="${bi}" aria-pressed="${!!on}">
+          <span>${esc(b.label)}</span><b>${pct(b.p)}</b></button>`;
+      }).join("")}</div></div>`;
+  }).join("");
+}
+$("#live").addEventListener("click", e => {
+  const b = e.target.closest("[data-lg]"); if (!b) return;
+  const g = LIVEB.games[+b.dataset.lg], o = g.bets[+b.dataset.lb];
+  const f = {home: g.home, away: g.away, iso: g.iso, time: g.time, sport: g.sport, lines: g.lines};
+  if (g.sport === "nog") f.league = g.league;
+  const msg = toggleLeg(f, o.bet, o.odds, true);
+  const leg = legFor(g.home, g.away, g.sport);
+  if (leg) { leg.livep = o.p; leg.liveLabel = o.label + " (uživo " + g.hs + ":" + g.as + ")"; if (g.sport !== "nog") leg.league = g.league; schedule(0); }
+  drawLive();
+  toast(`${msg} · ${parovi(filledLegs().length)}`);
+});
+setInterval(() => { if (view === "live" && !document.hidden) renderLive(false); }, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && view === "live") renderLive(false); });
+
 /* ---------- navigacija ---------- */
 function setView(v) {
   view = v;
   document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
   $("#ticketview").hidden = v !== "ticket"; $("#history").hidden = v !== "history"; $("#suggest").hidden = v !== "suggest";
-  $("#goriona").hidden = v !== "goriona";
+  $("#goriona").hidden = v !== "goriona"; $("#live").hidden = v !== "live";
   if (v === "goriona") renderGoriona();
+  if (v === "live") renderLive(true);
   if (v === "history") loadHistory(true);
   if (v === "suggest") renderSuggest();
   if (v === "ticket") renderSide();
