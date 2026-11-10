@@ -11,6 +11,7 @@ import basket as K
 import espn_soccer as E
 import sports2 as S2
 import uefa as U
+import reprezentacije as NT
 import forms as FO
 import model as M
 
@@ -103,6 +104,16 @@ def build(force=False, out=OUT):
     data["uefa"] = [l["code"] for l in u_leagues]
     # za rezultate uživo (aplikacija sama pita ESPN dok se utakmice igraju)
     data["espn"] = {"slugs": {**E.SLUGS, **{c: v[0] for c, v in U.COMPS.items()}}, "names": E.NAMES}
+    # reprezentacije (prijateljske, Liga nacija, kvalifikacije, velika natjecanja)
+    try:
+        n_leagues, n_fix, n_res, n_slugs = NT.build(today, force)
+        data["leagues"] += n_leagues
+        data["fixtures"] = sorted(data["fixtures"] + n_fix, key=lambda f: (f["iso"], f["time"], f["league"]))
+        data["results"] = sorted(data["results"] + n_res)
+        data["nt"] = [l["code"] for l in n_leagues]
+        data["espn"]["slugs"].update(n_slugs)
+    except Exception as e:
+        print("  ! Reprezentacije nisu uspjele:", e)
     # forma klubova iz svih natjecanja (isti klub pod različitim imenima povezan u jedno)
     try:
         form, alias = FO.build(leagues, U.load(today, force), today, force)

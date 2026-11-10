@@ -73,8 +73,9 @@ const Engine = (() => {
     const m = ph.map((p, i) => pa.map((q, j) => { const v = p * q * tau(i, j, lh, la, rho); s += v; return v; }));
     return m.map(row => row.map(v => v / s));
   }
-  function expectedGoals(lg, h, a) {
-    return [Math.exp(lg.mu + lg.home + lg.att[h] - lg.de[a]), Math.exp(lg.mu + lg.att[a] - lg.de[h])];
+  function expectedGoals(lg, h, a, neutral) {
+    const ha = neutral ? 0 : lg.home;   // neutralni teren (npr. velika natjecanja reprezentacija)
+    return [Math.exp(lg.mu + ha + lg.att[h] - lg.de[a]), Math.exp(lg.mu + lg.att[a] - lg.de[h])];
   }
 
   const SIMPLE = {
@@ -191,7 +192,7 @@ const Engine = (() => {
     const mk = fx ? marketProbabilities(fx.odds) : {};
     const ck = lg.code + "|" + h + "|" + a;
     if (!lamCache[ck]) {
-      const [mlh, mla] = expectedGoals(lg, h, a);
+      const [mlh, mla] = expectedGoals(lg, h, a, fx && fx.neutral);
       let lh = mlh, la = mla, source = "model";
       if (Object.keys(mk).length) {
         const ml = marketLambdas(mk, mlh, mla, lg.rho);
@@ -723,7 +724,7 @@ const Engine = (() => {
       const pb = betProbability(m, b);
       if (pb > 0.03 && pb < 0.93 && bets.length < 10) bets.push({bet: b, label: goalsLabel(b) || BET_LABELS[b] || b, p: pb});
     }
-    return {sport: "nog", league: code, leagueName: lg.name, flag: lg.flag, uefa: !!lg.uefa, home: h, away: a, hs, as,
+    return {sport: "nog", league: code, leagueName: lg.name, flag: lg.flag, uefa: !!lg.uefa, nt: !!lg.nt, home: h, away: a, hs, as,
       clock: /HALFTIME/.test(st.type.name) ? "Poluvrijeme" : (st.displayClock || "").replace(/'+$/, "") + "'", bets};
   }
   function liveNBA(ev, c) {
@@ -1024,7 +1025,7 @@ const Engine = (() => {
   function initPayload() {
     return {
       uefa: D.uefa || [],
-      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, uefa: !!l.uefa,
+      leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, uefa: !!l.uefa, nt: !!l.nt,
         weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
       basket: {

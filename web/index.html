@@ -1039,7 +1039,7 @@ const tagFlag = t => String.fromCodePoint(0x1F3F4, ...[...t].map(c => 0xE0000 + 
 const flagEmoji = code => code === "ENG" ? tagFlag("gbeng") : code === "SCO" ? tagFlag("gbsct")
   : FLAG_ISO[code] ? [...FLAG_ISO[code].toUpperCase()].map(c => String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))).join("") : "";
 const flagImg = code => FLAG_ISO[code] ? `<img class="flg" src="https://flagcdn.com/${FLAG_ISO[code]}.svg" alt="${esc(code)}" loading="lazy">` : "";
-const lgTitle = lg => flagImg(lg.flag) ? `${flagImg(lg.flag)} ${esc(lg.name)}` : `${esc(lg.flag)} · ${esc(lg.name)}`;
+const lgTitle = lg => lg.nt ? `${esc(lg.flag)} ${esc(lg.name)}` : flagImg(lg.flag) ? `${flagImg(lg.flag)} ${esc(lg.name)}` : `${esc(lg.flag)} · ${esc(lg.name)}`;
 function formHTML(f) { return `<span class="form">${[...(f || "")].map(c => `<span class="${c}">${c === "W" ? "P" : c === "D" ? "N" : "I"}</span>`).join("")}</span>`; }
 
 function basketLegHTML(r) {
@@ -1154,7 +1154,7 @@ const expanded = new Set();   // parovi kojima je otvoreno svih 20 opcija
 const moreBtn = (key, open) => `<button class="more" data-more="${esc(key)}">${open ? "▴ Manje opcija" : "▾ Još 10 opcija"}</button>`;
 const legFor = (home, away, sp = "nog") => legs.find(l => l.home === home && l.away === away && (l.sport || "nog") === sp);
 const leagueOf = code => INIT.leagues.find(l => l.code === code);
-const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : f.league === lgFilter);
+const lgMatch = f => lgFilter === "all" || (lgFilter === "top5" ? INIT.top5.includes(f.league) : lgFilter === "nt" ? !!(leagueOf(f.league) || {}).nt : f.league === lgFilter);
 
 // Pomakni samo traku s danima do odabranog dana (scrollIntoView bi pomaknuo cijelu stranicu na vrh).
 function centerDay() {
@@ -1204,7 +1204,7 @@ function renderSide() {
   document.querySelectorAll("#sideSeg button").forEach(b => b.classList.toggle("on", b.dataset.tab === side));
   if (sport !== "nog") return renderBasket();
   // europska natjecanja uvijek prva, pa domaće lige
-  const lgs = [...INIT.leagues.filter(l => l.uefa), ...INIT.leagues.filter(l => !l.uefa)];
+  const lgs = [...INIT.leagues.filter(l => l.uefa), ...INIT.leagues.filter(l => l.nt), ...INIT.leagues.filter(l => !l.uefa && !l.nt)];
   const opt = (v, t) => `<option value="${v}" ${lgFilter === v ? "selected" : ""}>${esc(t)}</option>`;
   const UEFA = [["UCL", "ucl", "⭐", "Liga prvaka", "Liga prvaka"], ["UEL", "uel", "🏆", "Europska liga", "Europska liga"],
     ["UECL", "uecl", "🔶", "Konferencijska liga", "Konf. liga"]]
@@ -1213,13 +1213,14 @@ function renderSide() {
       `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "";
   const select = (list, counts) => {
     const groups = [...new Set(list.map(l => l.country))];
-    const label = l => (l.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[l.code] || "") + l.name : (flagEmoji(l.flag) ? flagEmoji(l.flag) + " " : l.flag + " · ") + l.name) + (counts ? ` (${counts[l.code]})` : "");
+    const label = l => (l.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[l.code] || "") + l.name : l.nt ? l.flag + " " + l.name : (flagEmoji(l.flag) ? flagEmoji(l.flag) + " " : l.flag + " · ") + l.name) + (counts ? ` (${counts[l.code]})` : "");
     return groups.map(c => `<optgroup label="${esc(c)}">${list.filter(l => l.country === c).map(l => opt(l.code, label(l))).join("")}</optgroup>`).join("");
   };
 
   if (side === "tb") {
-    if (!lgs.some(l => l.code === lgFilter)) lgFilter = lgs[0].code;
-    $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">${select(lgs)}</select>`;
+    const tl = lgs.filter(l => !l.nt);   // reprezentacije nemaju ligašku tablicu
+    if (!tl.some(l => l.code === lgFilter)) lgFilter = tl[0].code;
+    $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">${select(tl)}</select>`;
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
     const lg = leagueOf(lgFilter);
     $("#side").innerHTML = `<p class="sub" style="margin:8px 2px 0">Dodirni klub za zadnje utakmice i formu kod kuće i u gostima.</p>
@@ -1248,9 +1249,10 @@ function renderSide() {
   const perLg = {};
   for (const f of dayFx) perLg[f.league] = (perLg[f.league] || 0) + 1;
   const top5Today = (INIT.top5 || []).filter(c => perLg[c]).reduce((x, c) => x + perLg[c], 0);
-  if ((lgFilter === "top5" && !top5Today) || (!["all", "top5"].includes(lgFilter) && !perLg[lgFilter])) lgFilter = "all";
+  const ntToday = INIT.leagues.filter(l => l.nt && perLg[l.code]).reduce((x, l) => x + perLg[l.code], 0);
+  if ((lgFilter === "top5" && !top5Today) || (lgFilter === "nt" && !ntToday) || (!["all", "top5", "nt"].includes(lgFilter) && !perLg[lgFilter])) lgFilter = "all";
   $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">
-    ${opt("all", `Sve lige (${dayFx.length})`)}${top5Today ? opt("top5", `Liga petica (${top5Today})`) : ""}
+    ${opt("all", `Sve lige (${dayFx.length})`)}${ntToday ? opt("nt", `🌍 Sve reprezentacije (${ntToday})`) : ""}${top5Today ? opt("top5", `Liga petica (${top5Today})`) : ""}
     ${select(lgs.filter(l => perLg[l.code]), perLg)}
   </select>`;
   const all = dayFx.filter(lgMatch);
@@ -1262,7 +1264,7 @@ function renderSide() {
   const fx = all.sort((a, b) => Engine.hrTime(a).localeCompare(Engine.hrTime(b)));
   const byLg = {};
   for (const f of fx) (byLg[f.league] = byLg[f.league] || []).push(f);
-  const order = [...lgs.filter(l => l.uefa), ...lgs.filter(l => !l.uefa)].map(l => l.code).filter(c => byLg[c]);
+  const order = [...lgs.filter(l => l.uefa), ...lgs.filter(l => l.nt), ...lgs.filter(l => !l.uefa && !l.nt)].map(l => l.code).filter(c => byLg[c]);
   $("#side").innerHTML = order.map(c => {
     const lg = leagueOf(c);
     return `<div class="lghead lg-${esc(c)}">${lg.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[c] || "") + esc(lg.name) : lgTitle(lg)}</div>` + byLg[c].map(f => {
@@ -1478,7 +1480,7 @@ function drawLive() {
   }
   el.innerHTML = hero + G.map((g, gi) => {
     const leg = legFor(g.home, g.away, g.sport);
-    const lgName = g.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[g.league] || "") + esc(g.leagueName) : lgTitle({flag: g.flag, name: g.leagueName});
+    const lgName = g.uefa ? ({UCL: "⭐ ", UEL: "🏆 ", UECL: "🔶 "}[g.league] || "") + esc(g.leagueName) : lgTitle({flag: g.flag, name: g.leagueName, nt: g.nt});
     return `<div class="lg-card">
       <div class="lg-top"><span>${SPORT_EMOJI[g.sport]} ${lgName}</span><span class="lg-clock">${esc(g.clock)}</span></div>
       <div class="lg-score"><span class="t">${esc(g.home)}</span><span class="g">${g.hs}</span><span class="t">${esc(g.away)}</span><span class="g">${g.as}</span></div>
