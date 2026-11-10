@@ -144,6 +144,29 @@ def load(today=None, force=False, hist_end=None):
     return results, fixtures
 
 
+def standings(slug, force):
+    """Tablice skupina natjecanja (npr. Liga nacija A1...D2), ako ih ESPN ima."""
+    js = K._get(f"https://site.api.espn.com/apis/v2/sports/soccer/{slug}/standings",
+                os.path.join(DIR, f"tablica_{slug}.json"), 0 if force else 3 * 3600) or {}
+    groups = []
+    for g in js.get("children", []):
+        rows = []
+        for e in (g.get("standings") or {}).get("entries", []):
+            st = {x["name"]: x.get("value") for x in e.get("stats", [])}
+            try:
+                rows.append({"team": e["team"]["displayName"], "rank": int(st.get("rank") or 99),
+                             "p": int(st.get("gamesPlayed") or 0), "w": int(st.get("wins") or 0), "d": int(st.get("ties") or 0),
+                             "l": int(st.get("losses") or 0), "gf": int(st.get("pointsFor") or 0),
+                             "ga": int(st.get("pointsAgainst") or 0), "pts": int(st.get("points") or 0)})
+            except (KeyError, TypeError, ValueError):
+                continue
+        if rows:
+            rows.sort(key=lambda r: (r["rank"], -r["pts"]))
+            name = (g.get("name") or "").replace("Group", "Skupina").replace("League", "Liga")
+            groups.append({"name": name, "table": rows})
+    return groups
+
+
 class NTModel(M.LeagueModel):
     """Isti model kao za lige, ali s neutralnim terenima, lakšim prijateljskim i duljim pamćenjem."""
 
@@ -192,6 +215,12 @@ def build(today=None, force=False):
     fixtures = [f for f in fixtures if f["home"] in known and f["away"] in known]
 
     r4 = lambda x: round(x, 4)
+    # forma (zadnjih 5, najstarija prva) za tablice
+    seq = {}
+    for d, h, a, hg, ag, *_ in sorted(matches, key=lambda m: m[0]):
+        seq.setdefault(h, []).append("W" if hg > ag else "D" if hg == ag else "L")
+        seq.setdefault(a, []).append("W" if ag > hg else "D" if hg == ag else "L")
+    form = {t: "".join(v[-5:]) for t, v in seq.items()}
     leagues = []
     since = today - dt.timedelta(days=400)
     for code, (slug, name, icon) in COMPS.items():
@@ -199,8 +228,16 @@ def build(today=None, force=False):
                        | {t for m in recent if m[7] == code and m[0] >= since for t in m[1:3]} & known)
         if not any(f["league"] == code for f in fixtures):
             continue      # natjecanje se trenutno ne igra
+        try:
+            groups = standings(slug, force)
+        except Exception as e:
+            print(f"  ! Tablica {name}: {e}")
+            groups = []
+        for g in groups:
+            for r in g["table"]:
+                r["form"] = form.get(r["team"], "")
         leagues.append({
-            "code": code, "name": name, "flag": icon, "country": "Reprezentacije", "nt": True,
+            "code": code, "name": name, "flag": icon, "country": "Reprezentacije", "nt": True, "groups": groups,
             "weight": WEIGHT, "accuracy": None, "teams": teams, "table": [],
             "mu": r4(mdl.mu), "home": r4(mdl.home), "rho": r4(mdl.rho),
             "att": {t: r4(mdl.att[t]) for t in teams}, "de": {t: r4(mdl.de[t]) for t in teams},

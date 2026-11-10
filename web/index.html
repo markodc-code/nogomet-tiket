@@ -210,6 +210,7 @@ tr.tdet td { padding: 0 0 10px; text-align: left; border-bottom: .5px solid var(
 .sc.W { background: #22a34a; } .sc.L { background: #e5352b; } .sc.D { background: #f59e0b; }
 .tpop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .tpop .none { color: var(--muted); font-size: 13px; }
+.grp-h { margin: 18px 4px 6px; font-size: 15px; font-weight: 800; color: #4f46e5; letter-spacing: .02em; }
 
 /* ---------- moj tiket ---------- */
 .ticket-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
@@ -1223,7 +1224,7 @@ function renderSide() {
     ["UECL", "uecl", "🔶", "Konferencijska liga", "Konf. liga"],
     ["UNL", "unl", `<span class="mflags">${["hr", "fr", "es", "de", "pt", "it"].map((c, i) =>
       `<img src="https://flagcdn.com/${c}.svg" alt="" style="animation-delay:${i * .18}s">`).join("")}</span>`, "Liga nacija", "L. nacija"]]
-    .filter(([c]) => lgs.some(l => l.code === c) && !(c === "UNL" && side === "tb"));
+    .filter(([c]) => lgs.some(l => l.code === c) && !(c === "UNL" && side === "tb" && !(leagueOf("UNL").groups || []).length));
   const uefaTabs = UEFA.length ? `<div class="uefa-tabs" style="--n:${UEFA.length}">${UEFA.map(([c, cls, ico, name, short]) =>
       `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "";
   const select = (list, counts) => {
@@ -1233,18 +1234,19 @@ function renderSide() {
   };
 
   if (side === "tb") {
-    const tl = lgs.filter(l => !l.nt);   // reprezentacije nemaju ligašku tablicu
+    const tl = lgs.filter(l => !l.nt || (l.groups && l.groups.length));   // reprezentacije: samo natjecanja sa skupinama
     if (!tl.some(l => l.code === lgFilter)) lgFilter = tl[0].code;
     $("#lgf").innerHTML = uefaTabs + `<select id="lgsel" aria-label="Liga">${select(tl)}</select>`;
     $("#days").innerHTML = ""; $("#dayhead").innerHTML = "";
     const lg = leagueOf(lgFilter);
     $("#side").innerHTML = `<p class="sub" style="margin:8px 2px 0">Dodirni klub za zadnje utakmice i formu kod kuće i u gostima.</p>
+      ${(lg.groups && lg.groups.length ? lg.groups : [{name: "", table: lg.table}]).map(g => `${g.name ? `<h3 class="grp-h">${esc(g.name)}</h3>` : ""}
       <table><tr><th>#</th><th>Momčad</th><th>U</th><th>G</th><th>Bod</th><th>Forma</th></tr>
-      ${lg.table.map((r, i) => {
+      ${g.table.map((r, i) => {
         const open = openTeam === r.team;
         return `<tr class="trow ${open ? "open" : ""}" data-team="${esc(r.team)}"><td>${i + 1}</td><td>${esc(r.team)}<b class="chev">${open ? "▴" : "▾"}</b></td><td>${r.p}</td><td>${r.gf}:${r.ga}</td><td><b>${r.pts}</b></td><td>${formHTML(r.form)}</td></tr>`
           + (open ? `<tr class="tdet"><td colspan="6">${teamPopup(r.team)}</td></tr>` : "");
-      }).join("")}</table>`;
+      }).join("")}</table>`).join("")}`;
     return;
   }
 

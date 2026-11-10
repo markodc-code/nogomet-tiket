@@ -1026,7 +1026,7 @@ const Engine = (() => {
     return {
       uefa: D.uefa || [],
       leagues: D.leagues.map(l => ({code: l.code, name: l.name, flag: l.flag, country: l.country, uefa: !!l.uefa, nt: !!l.nt,
-        weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table})),
+        weight: l.weight, accuracy: l.accuracy, teams: l.teams, table: l.table, groups: l.groups})),
       top5: D.top5 || [], accuracySeason: D.accuracySeason,
       basket: {
         leagues: B.leagues.map(l => ({code: l.code, sport: l.sport || "kos", model: l.model || "points", name: l.name, flag: l.flag, country: l.country, hasOdds: l.hasOdds,
