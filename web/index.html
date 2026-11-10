@@ -446,7 +446,7 @@ body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, trans
 @keyframes lshake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 
 /* ---------- europska natjecanja: animirane kartice ---------- */
-.uefa-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.uefa-tabs { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 8px; margin-bottom: 10px; }
 .uefa-tabs button { position: relative; overflow: hidden; border: 0; border-radius: 14px; min-height: 54px; padding: 6px 8px;
   color: #fff; font-weight: 800; font-size: 14px; letter-spacing: .02em; line-height: 1.15; text-shadow: 0 1px 2px rgba(0,0,0,.35);
   display: flex; align-items: center; justify-content: center; gap: 6px; background-size: 220% 220%;
@@ -461,6 +461,14 @@ body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, trans
 .uefa-tabs .uel::after { animation-delay: 1.1s; }
 .uefa-tabs .uecl { background-image: linear-gradient(135deg, #7c2d12 0%, #ea580c 45%, #fdba74 70%, #7c2d12 100%); }
 .uefa-tabs .uecl::after { animation-delay: 2.2s; }
+/* Liga nacija: tamnoplava s duginim sjajem i sitnim zastavicama */
+.uefa-tabs .unl { background-image: linear-gradient(135deg, #0a1033 0%, #1b2a7a 35%, #6d28d9 55%, #0ea5a4 75%, #0a1033 100%); }
+.uefa-tabs .unl::after { animation-delay: 1.6s; }
+.uefa-tabs .unl .ico { animation: none; }
+.mflags { display: inline-grid; grid-template-columns: repeat(3, 9px); gap: 2px; vertical-align: middle; }
+.mflags img { width: 9px; height: 6px; object-fit: cover; border-radius: 1.5px; box-shadow: 0 0 0 .5px rgba(255,255,255,.55);
+  animation: mWave 1.8s ease-in-out infinite; }
+@keyframes mWave { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1.5px) scale(1.12); } }
 .uefa-tabs .ico { display: inline-block; animation: uTwinkle 1.6s ease-in-out infinite; }
 .uefa-tabs button.on { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink), 0 6px 18px rgba(0,0,0,.2); transform: translateY(-1px); }
 @keyframes uGrad { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
@@ -468,8 +476,13 @@ body[data-sport] .fx { border-top-color: color-mix(in srgb, var(--ink) 8%, trans
 @keyframes uTwinkle { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(1.25) rotate(20deg); opacity: .75; } }
 .uefa-tabs .ls { display: none; }
 @media (max-width: 520px) { .uefa-tabs { gap: 6px; } .uefa-tabs button { font-size: 12.5px; min-height: 50px; padding: 4px; gap: 4px; } .uefa-tabs .lf { display: none; } .uefa-tabs .ls { display: inline; } }
-@media (prefers-reduced-motion: reduce) { .uefa-tabs button, .uefa-tabs button::after, .uefa-tabs .ico { animation: none; } }
-.lghead.lg-UCL { color: #1e4fd8; } .lghead.lg-UEL { color: #0c8a4f; } .lghead.lg-UECL { color: #ea580c; }
+@media (prefers-reduced-motion: reduce) { .uefa-tabs button, .uefa-tabs button::after, .uefa-tabs .ico, .mflags img { animation: none; } }
+@media (max-width: 520px) {
+  .uefa-tabs[style*="--n:4"] { grid-template-columns: repeat(2, 1fr); }
+  .uefa-tabs[style*="--n:4"] button { min-height: 44px; font-size: 13.5px; gap: 7px; }
+  .uefa-tabs[style*="--n:4"] .lf { display: inline; } .uefa-tabs[style*="--n:4"] .ls { display: none; }
+}
+.lghead.lg-UCL { color: #1e4fd8; } .lghead.lg-UEL { color: #0c8a4f; } .lghead.lg-UECL { color: #ea580c; } .lghead.lg-UNL { color: #4f46e5; font-weight: 800; }
 .lghead.lg-UCL, .lghead.lg-UEL, .lghead.lg-UECL { font-weight: 800; }
 
 
@@ -1207,9 +1220,11 @@ function renderSide() {
   const lgs = [...INIT.leagues.filter(l => l.uefa), ...INIT.leagues.filter(l => l.nt), ...INIT.leagues.filter(l => !l.uefa && !l.nt)];
   const opt = (v, t) => `<option value="${v}" ${lgFilter === v ? "selected" : ""}>${esc(t)}</option>`;
   const UEFA = [["UCL", "ucl", "⭐", "Liga prvaka", "Liga prvaka"], ["UEL", "uel", "🏆", "Europska liga", "Europska liga"],
-    ["UECL", "uecl", "🔶", "Konferencijska liga", "Konf. liga"]]
-    .filter(([c]) => lgs.some(l => l.code === c));
-  const uefaTabs = UEFA.length ? `<div class="uefa-tabs">${UEFA.map(([c, cls, ico, name, short]) =>
+    ["UECL", "uecl", "🔶", "Konferencijska liga", "Konf. liga"],
+    ["UNL", "unl", `<span class="mflags">${["hr", "fr", "es", "de", "pt", "it"].map((c, i) =>
+      `<img src="https://flagcdn.com/${c}.svg" alt="" style="animation-delay:${i * .18}s">`).join("")}</span>`, "Liga nacija", "L. nacija"]]
+    .filter(([c]) => lgs.some(l => l.code === c) && !(c === "UNL" && side === "tb"));
+  const uefaTabs = UEFA.length ? `<div class="uefa-tabs" style="--n:${UEFA.length}">${UEFA.map(([c, cls, ico, name, short]) =>
       `<button class="${cls} ${lgFilter === c ? "on" : ""}" data-uefa="${c}" aria-pressed="${lgFilter === c}" aria-label="${name}"><span class="ico">${ico}</span><span class="lf">${name}</span><span class="ls">${short}</span></button>`).join("")}</div>` : "";
   const select = (list, counts) => {
     const groups = [...new Set(list.map(l => l.country))];
